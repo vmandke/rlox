@@ -2,17 +2,20 @@ use std::{env, fs};
 
 pub type Source = String;
 
-pub fn read_file(file_path: &str) -> Source {
-    fs::read_to_string(file_path).expect("Something went wrong reading the file")
+use crate::errors::LoxError;
+
+
+pub fn read_file(file_path: &str) -> Result<Source, LoxError> {
+    fs::read_to_string(file_path).map_err(|e| LoxError::ReaderIoError(e))
 }
 
-pub fn read_stdin() -> Source {
+pub fn read_stdin() -> Result<Source, LoxError> {
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input).expect("Failed to read from stdin");
-    input
+    std::io::stdin().read_line(&mut input).map_err(|e| LoxError::ReaderIoError(e))?;
+    Ok(input)
 }
 
-pub fn read_source() -> Source {
+pub fn read_source() -> Result<Source, LoxError> {
     let args: Vec<String> = env::args().collect();
 
     match args.len() {
@@ -26,8 +29,8 @@ pub fn read_source() -> Source {
         }
         _ => {
             println!("Usage: rlox [optional script]");
-            // incorrect usage
-            std::process::exit(64);
+            // raise an error here since this is an invalid usage of the program
+            Err(LoxError::UsageError("Invalid number of arguments".into()))
         }
     }
 }
