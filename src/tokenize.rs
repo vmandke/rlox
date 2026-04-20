@@ -256,4 +256,17 @@ mod tests {
         assert_tokens_eq(&tokens[9],  ";",   &TokenType::BoundaryTokens(BoundaryTokens::Semicolon), 2);
         assert_tokens_eq(&tokens[10], "",    &TokenType::Eof,                                 2);
     }
+
+    #[test]
+    fn test_orchid() {
+        let mut source = reader::Source::new("var orchid = 30;".into());
+        let tokens = scan(&mut source).unwrap();
+        assert_eq!(tokens.len(), 6);
+        assert_tokens_eq(&tokens[0], "var", &TokenType::Keywords(Keywords::Var), 1);
+        assert_tokens_eq(&tokens[1], "orchid", &TokenType::Literals(Literals::Identifier), 1);
+        assert_tokens_eq(&tokens[2], "=", &TokenType::BoundaryTokens(BoundaryTokens::Equal), 1);
+        assert_tokens_eq(&tokens[3], "30", &TokenType::Literals(Literals::Identifier), 1);
+        assert_tokens_eq(&tokens[4], ";", &TokenType::BoundaryTokens(BoundaryTokens::Semicolon), 1);
+        assert_tokens_eq(&tokens[5], "", &TokenType::Eof, 1);
+    }
 }
