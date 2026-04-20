@@ -1,18 +1,24 @@
 use std::{env, fs};
 
-pub type Source = String;
+pub struct Source {
+    text: String,
+}
 
 use crate::errors::LoxError;
 
 
 pub fn read_file(file_path: &str) -> Result<Source, LoxError> {
-    fs::read_to_string(file_path).map_err(|e| LoxError::ReaderIoError(e))
+    fs::read_to_string(file_path)
+        .map(|buf| Source { text: buf })
+        .map_err(|e| LoxError::ReaderIoError(e))
 }
 
 pub fn read_stdin() -> Result<Source, LoxError> {
     let mut input = String::new();
+    // TODO (vin): Possibly keep reading until EOF instead of just one line?
+    // Q: How to pass the collected input to the runner (code structure) ?
     std::io::stdin().read_line(&mut input).map_err(|e| LoxError::ReaderIoError(e))?;
-    Ok(input)
+    Ok(Source { text: input })
 }
 
 pub fn read_source() -> Result<Source, LoxError> {
