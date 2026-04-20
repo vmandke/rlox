@@ -1,24 +1,39 @@
 use std::{env, fs};
 
-pub struct Source {
-    text: String,
-}
-
 use crate::errors::LoxError;
 
+pub struct Source {
+    text: String,
+    pos: usize,
+}
+
+impl Source {
+    pub fn new(text: String) -> Self {
+        Source { text, pos: 0 }
+    }
+
+    pub fn advance(&mut self) -> Option<char> {
+        let c = self.text[self.pos..].chars().next()?;
+        self.pos += c.len_utf8();
+        Some(c)
+    }
+
+    pub fn peek_char(&self) -> Option<char> {
+        self.text[self.pos..].chars().next()
+    }
+}
 
 pub fn read_file(file_path: &str) -> Result<Source, LoxError> {
     fs::read_to_string(file_path)
-        .map(|buf| Source { text: buf })
+        .map(Source::new)
         .map_err(|e| LoxError::ReaderIoError(e))
 }
 
 pub fn read_stdin() -> Result<Source, LoxError> {
     let mut input = String::new();
     // TODO (vin): Possibly keep reading until EOF instead of just one line?
-    // Q: How to pass the collected input to the runner (code structure) ?
     std::io::stdin().read_line(&mut input).map_err(|e| LoxError::ReaderIoError(e))?;
-    Ok(Source { text: input })
+    Ok(Source::new(input))
 }
 
 pub fn read_source() -> Result<Source, LoxError> {
@@ -35,8 +50,42 @@ pub fn read_source() -> Result<Source, LoxError> {
         }
         _ => {
             println!("Usage: rlox [optional script]");
-            // raise an error here since this is an invalid usage of the program
             Err(LoxError::UsageError("Invalid number of arguments".into()))
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_next_source() {
+        let mut source = Source::new("hello".into());
+        assert_eq!(source.advance(), Some('h'));
+        assert_eq!(source.advance(), Some('e'));
+        assert_eq!(source.advance(), Some('l'));
+        assert_eq!(source.advance(), Some('l'));
+        assert_eq!(source.advance(), Some('o'));
+        assert_eq!(source.advance(), None);
+    }
+
+    #[test]
+    fn test_peek_source() {
+        let mut source = Source::new("world".into());
+        assert_eq!(source.peek_char(), Some('w'));
+        assert_eq!(source.advance(), Some('w'));
+        assert_eq!(source.peek_char(), Some('o'));
+        assert_eq!(source.advance(), Some('o'));
+        assert_eq!(source.peek_char(), Some('r'));
+        assert_eq!(source.advance(), Some('r'));
+        assert_eq!(source.peek_char(), Some('l'));
+        assert_eq!(source.advance(), Some('l'));
+        assert_eq!(source.peek_char(), Some('d'));      
+        assert_eq!(source.advance(), Some('d'));
+        assert_eq!(source.peek_char(), None);
+        assert_eq!(source.advance(), None);  
+    
     }
 }

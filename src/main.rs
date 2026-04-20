@@ -7,8 +7,8 @@ mod errors;
 use crate::errors::LoxError;
 
 fn runner() -> Result<(), LoxError> {
-    let source: reader::Source = reader::read_source()?;
-    let tokens = tokenize::scan(source)?;
+    let mut source: reader::Source = reader::read_source()?;
+    let tokens = tokenize::scan(&mut source)?;
     let ast = parser::parse(tokens)?;
     let result = evaluate::evaluate(ast)?;
     println!("{}", result);
