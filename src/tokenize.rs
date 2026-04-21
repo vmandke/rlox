@@ -129,6 +129,33 @@ fn consume_till_end_of_line(source: &mut reader::Source) {
     }
 }
 
+fn consume_till_end_of_block_comment(source: &mut reader::Source, start_line: usize, start_col: usize) -> Result<(usize, usize), LoxError> {
+    let mut line = start_line;
+    let mut col = start_col;
+    loop {
+        match source.advance() {
+            Some('*') if source.peek_char() == Some('/') => {
+                source.advance();
+                col += 2;
+                return Ok((line, col));
+            }
+            Some('/') if source.peek_char() == Some('*') => {
+                // Challenge: Handle nested block comments.
+                source.advance();
+                col += 2;
+                (line, col) = consume_till_end_of_block_comment(source, line, col)?;
+            }
+            Some('\n') => { line += 1; col = 0; }
+            Some(_) => { col += 1; }
+            None => return Err(LoxError::ScanError {
+                line,
+                col,
+                message: "Unterminated block comment".into(),
+            }),
+        }
+    }
+}
+
 fn add_boundary_token(token_type: TokenType, cp: &str, tokens: &mut Vec<Token>, line: usize, col: usize) {
     tokens.push(Token {
         lexeme: cp.to_string(),
@@ -181,14 +208,30 @@ pub fn scan(source: &mut reader::Source) -> Result<Vec<Token>, LoxError> {
                     process_lexeme(&current_lexeme, &mut tokens, line, col);
                     current_lexeme.clear();
                 },
-                '/' if p == Some('/') => {
-                    process_lexeme(&current_lexeme, &mut tokens, line, col);
-                    current_lexeme.clear();
-                    consume_till_end_of_line(source);
-                    // Advance the line and reset column after consuming the comment.
-                    line += 1;
-                    col = 0;
-                },
+                '/' => {
+                    match p {
+                        Some('/') => {
+                            process_lexeme(&current_lexeme, &mut tokens, line, col);
+                            current_lexeme.clear();
+                            consume_till_end_of_line(source);
+                            // Advance the line and reset column after consuming the comment.
+                            line += 1;
+                            col = 0;
+                        }
+                        Some('*') => {
+                            source.advance(); // consume '*'
+                            process_lexeme(&current_lexeme, &mut tokens, line, col);
+                            current_lexeme.clear();
+                            (line, col) = consume_till_end_of_block_comment(source, line, col)?;
+                        }
+                        _ => {
+                            // Handle '/' as a boundary token.
+                            process_lexeme(&current_lexeme, &mut tokens, line, col);
+                            current_lexeme.clear();
+                            add_boundary_token(TokenType::BoundaryTokens(BoundaryTokens::Slash), &c.to_string(), &mut tokens, line, col);
+                        }
+                    }
+                }
                 '.' => {
                     // Handle if '.' is part of a number literal
                     if !current_lexeme.is_empty() && current_lexeme.chars().all(|c| c.is_ascii_digit()) {
@@ -289,5 +332,23 @@ mod tests {
         assert_tokens_eq(&tokens[3], "30", &TokenType::Literals(Literals::Identifier), 1);
         assert_tokens_eq(&tokens[4], ";", &TokenType::BoundaryTokens(BoundaryTokens::Semicolon), 1);
         assert_tokens_eq(&tokens[5], "", &TokenType::Eof, 1);
+    }
+
+    #[test]
+    fn test_nested_block_comment() {
+        let mut source = reader::Source::new("var x = 10; /* this /*is*/ a comment */ var y = 20;".into());
+        let tokens = scan(&mut source).unwrap();
+        assert_eq!(tokens.len(), 11);
+        assert_tokens_eq(&tokens[0],  "var", &TokenType::Keywords(Keywords::Var),             1);
+        assert_tokens_eq(&tokens[1],  "x",   &TokenType::Literals(Literals::Identifier),      1);
+        assert_tokens_eq(&tokens[2],  "=",   &TokenType::BoundaryTokens(BoundaryTokens::Equal), 1);
+        assert_tokens_eq(&tokens[3],  "10",  &TokenType::Literals(Literals::Identifier),      1);
+        assert_tokens_eq(&tokens[4],  ";",   &TokenType::BoundaryTokens(BoundaryTokens::Semicolon), 1);
+        assert_tokens_eq(&tokens[5],  "var", &TokenType::Keywords(Keywords::Var),             1);
+        assert_tokens_eq(&tokens[6],  "y",   &TokenType::Literals(Literals::Identifier),      1);
+        assert_tokens_eq(&tokens[7],  "=",   &TokenType::BoundaryTokens(BoundaryTokens::Equal), 1);
+        assert_tokens_eq(&tokens[8],  "20",  &TokenType::Literals(Literals::Identifier),      1);
+        assert_tokens_eq(&tokens[9],  ";",   &TokenType::BoundaryTokens(BoundaryTokens::Semicolon), 1);
+        assert_tokens_eq(&tokens[10], "",    &TokenType::Eof,                                 1);
     }
 }

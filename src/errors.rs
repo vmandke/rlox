@@ -1,5 +1,5 @@
 
-use std::{f32::consts::E, fmt};
+use std::fmt;
 
 #[derive(Debug)]
 pub enum LoxError {
@@ -22,8 +22,8 @@ impl std::error::Error for LoxError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             LoxError::ReaderIoError(e) => Some(e),
-            LoxError::UsageError(_) => std::error::Error::source(self),
-            LoxError::ScanError { .. } => std::error::Error::source(self),
+            LoxError::UsageError(_) => None,
+            LoxError::ScanError { .. } => None,
         }
     }
 }
