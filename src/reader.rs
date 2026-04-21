@@ -32,7 +32,9 @@ pub fn read_file(file_path: &str) -> Result<Source, LoxError> {
 pub fn read_stdin() -> Result<Source, LoxError> {
     let mut input = String::new();
     // TODO (vin): Possibly keep reading until EOF instead of just one line?
-    std::io::stdin().read_line(&mut input).map_err(|e| LoxError::ReaderIoError(e))?;
+    std::io::stdin()
+        .read_line(&mut input)
+        .map_err(|e| LoxError::ReaderIoError(e))?;
     Ok(Source::new(input))
 }
 
@@ -54,7 +56,6 @@ pub fn read_source() -> Result<Source, LoxError> {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -82,10 +83,9 @@ mod tests {
         assert_eq!(source.advance(), Some('r'));
         assert_eq!(source.peek_char(), Some('l'));
         assert_eq!(source.advance(), Some('l'));
-        assert_eq!(source.peek_char(), Some('d'));      
+        assert_eq!(source.peek_char(), Some('d'));
         assert_eq!(source.advance(), Some('d'));
         assert_eq!(source.peek_char(), None);
-        assert_eq!(source.advance(), None);  
-    
+        assert_eq!(source.advance(), None);
     }
 }
