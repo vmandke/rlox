@@ -3,23 +3,28 @@ use std::{env, fs};
 use crate::errors::LoxError;
 
 pub struct Source {
-    text: String,
-    pos: usize,
+    chars: std::iter::Peekable<std::vec::IntoIter<char>>,
 }
 
 impl Source {
     pub fn new(text: String) -> Self {
-        Source { text, pos: 0 }
+        
+        Source {
+            // Discussion on lifetimes: How many copies of text are created?
+            // Should Source be consumed by tokenizer instead of being passed by mutable reference?
+            // TODO (vin): Consider using a more efficient data structure for the source text.
+            
+            // Challenge: Can the tokenizer work off the original source, and all the collected lexemes be slices of the original source?             // text.chars().enumerate().peekable(); -> Would mean the text needs to be kept alive.
+            chars: text.chars().collect::<Vec<_>>().into_iter().peekable(),
+        }
     }
-
     pub fn advance(&mut self) -> Option<char> {
-        let c = self.text[self.pos..].chars().next()?;
-        self.pos += c.len_utf8();
-        Some(c)
+        self.chars.next()
     }
 
-    pub fn peek_char(&self) -> Option<char> {
-        self.text[self.pos..].chars().next()
+    pub fn peek_char(&mut self) -> Option<char> {
+        // TODO (vin): Can this be passed by reference instead of creating a copy??
+        self.chars.peek().copied()
     }
 }
 

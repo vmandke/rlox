@@ -24,9 +24,10 @@ pub enum Keywords {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Literals {
-    Identifier,
-    String,
-    Number,
+    Identifier(String),
+    String(String),
+    Number(f64),
+    Nil,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -196,12 +197,12 @@ fn process_lexeme(
     let token_type: TokenType = if KEYWORDS.contains_key(lexeme) {
         KEYWORDS[lexeme].clone()
     } else if lexeme.parse::<i64>().is_ok() {
-        TokenType::Literals(Literals::Number)
+        TokenType::Literals(Literals::Number(lexeme.parse::<i64>().unwrap() as f64))
     } else if lexeme.parse::<f64>().is_ok() {
-        TokenType::Literals(Literals::Number)
+        TokenType::Literals(Literals::Number(lexeme.parse::<f64>().unwrap()))
     } else if lexeme.starts_with('"') && lexeme.ends_with('"') {
         // TODO (vin): Handle string literals properly, including escape sequences and multi-line strings.
-        TokenType::Literals(Literals::String)
+        TokenType::Literals(Literals::String(lexeme.to_string()))
     } else if lexeme.chars().next().is_some() && lexeme.chars().next().unwrap().is_ascii_digit() {
         // Handle the case where the lexeme starts with a digit but isn't a valid number literal.
         // 123abc
@@ -212,7 +213,7 @@ fn process_lexeme(
         });
     } else {
         // FIXME (vin): The default case needs to be more strict; eg abc.123 will be treated as an identifier
-        TokenType::Literals(Literals::Identifier) //  "orchid", etc.
+        TokenType::Literals(Literals::Identifier(lexeme.to_string())) //  "orchid", etc.
     };
     tokens.push(Token {
         lexeme: lexeme.to_string(),
@@ -367,7 +368,7 @@ mod tests {
         assert_tokens_eq(
             &tokens[1],
             "x",
-            &TokenType::Literals(Literals::Identifier),
+            &TokenType::Literals(Literals::Identifier("x".into())),
             1,
         );
         assert_tokens_eq(
@@ -376,7 +377,7 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             1,
         );
-        assert_tokens_eq(&tokens[3], "10", &TokenType::Literals(Literals::Number), 1);
+        assert_tokens_eq(&tokens[3], "10", &TokenType::Literals(Literals::Number(10.0)), 1);
         assert_tokens_eq(
             &tokens[4],
             ";",
@@ -387,7 +388,7 @@ mod tests {
         assert_tokens_eq(
             &tokens[6],
             "y",
-            &TokenType::Literals(Literals::Identifier),
+            &TokenType::Literals(Literals::Identifier("y".into())),
             2,
         );
         assert_tokens_eq(
@@ -396,7 +397,7 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             2,
         );
-        assert_tokens_eq(&tokens[8], "20", &TokenType::Literals(Literals::Number), 2);
+        assert_tokens_eq(&tokens[8], "20", &TokenType::Literals(Literals::Number(20.0)), 2);
         assert_tokens_eq(
             &tokens[9],
             ";",
@@ -415,7 +416,7 @@ mod tests {
         assert_tokens_eq(
             &tokens[1],
             "orchid",
-            &TokenType::Literals(Literals::Identifier),
+            &TokenType::Literals(Literals::Identifier("orchid".into())),
             1,
         );
         assert_tokens_eq(
@@ -424,7 +425,7 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             1,
         );
-        assert_tokens_eq(&tokens[3], "30", &TokenType::Literals(Literals::Number), 1);
+        assert_tokens_eq(&tokens[3], "30", &TokenType::Literals(Literals::Number(30.0)), 1);
         assert_tokens_eq(
             &tokens[4],
             ";",
@@ -444,7 +445,7 @@ mod tests {
         assert_tokens_eq(
             &tokens[1],
             "x",
-            &TokenType::Literals(Literals::Identifier),
+            &TokenType::Literals(Literals::Identifier("x".into())),
             1,
         );
         assert_tokens_eq(
@@ -453,7 +454,7 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             1,
         );
-        assert_tokens_eq(&tokens[3], "10", &TokenType::Literals(Literals::Number), 1);
+        assert_tokens_eq(&tokens[3], "10", &TokenType::Literals(Literals::Number(10.0)), 1);
         assert_tokens_eq(
             &tokens[4],
             ";",
@@ -464,7 +465,7 @@ mod tests {
         assert_tokens_eq(
             &tokens[6],
             "y",
-            &TokenType::Literals(Literals::Identifier),
+            &TokenType::Literals(Literals::Identifier("y".into())),
             1,
         );
         assert_tokens_eq(
@@ -473,7 +474,7 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             1,
         );
-        assert_tokens_eq(&tokens[8], "20", &TokenType::Literals(Literals::Number), 1);
+        assert_tokens_eq(&tokens[8], "20", &TokenType::Literals(Literals::Number(20.0)), 1);
         assert_tokens_eq(
             &tokens[9],
             ";",
