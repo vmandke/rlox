@@ -116,11 +116,12 @@ static BOUNDARY_TOKENS: LazyLock<HashMap<&str, TokenType>> = LazyLock::new(|| {
 pub struct Token {
     lexeme: String,
     token_type: TokenType,
+    col: usize,
     line: usize,
     literal: String,
 }
 
-pub fn consume_till_end_of_line(source: &mut reader::Source) {
+fn consume_till_end_of_line(source: &mut reader::Source) {
     while let Some(c) = source.advance() {
         if c == '\n' {
             break;
@@ -128,21 +129,17 @@ pub fn consume_till_end_of_line(source: &mut reader::Source) {
     }
 }
 
-pub fn add_token_if_boundary(cp: &str, tokens: &mut Vec<Token>, line: usize) -> bool {
-    if let Some(token_type) = BOUNDARY_TOKENS.get(cp) {
-        tokens.push(Token {
-            lexeme: cp.to_string(),
-            token_type: token_type.clone(),
-            line,
-            literal: String::new(),
-        });
-        true
-    } else {
-        false
-    }
+fn add_boundary_token(token_type: TokenType, cp: &str, tokens: &mut Vec<Token>, line: usize, col: usize) {
+    tokens.push(Token {
+        lexeme: cp.to_string(),
+        token_type,
+        line,
+        col,
+        literal: String::new(),
+    });
 }
 
-pub fn process_lexeme(lexeme: &str, tokens: &mut Vec<Token>, line: usize) {
+fn process_lexeme(lexeme: &str, tokens: &mut Vec<Token>, line: usize, col: usize) {
     if lexeme.is_empty() {
         return;
     }
@@ -151,13 +148,16 @@ pub fn process_lexeme(lexeme: &str, tokens: &mut Vec<Token>, line: usize) {
             lexeme: lexeme.to_string(),
             token_type: token_type.clone(),
             line,
+            col,
             literal: String::new(),
         });
     } else {
+        // TODO (vin): Handle string and number literals first.
         tokens.push(Token {
             lexeme: lexeme.to_string(),
             token_type: TokenType::Literals(Literals::Identifier),
             line,
+            col,
             literal: String::new(),
         });
     }
@@ -167,60 +167,81 @@ pub fn process_lexeme(lexeme: &str, tokens: &mut Vec<Token>, line: usize) {
 pub fn scan(source: &mut reader::Source) -> Result<Vec<Token>, LoxError> {
     let mut tokens = Vec::new();
     let mut line = 1;
+    let mut col: usize = 0;
     let mut current_lexeme = String::new();
     loop {
         let c = source.advance();
         let p = source.peek_char();
+        col += 1;
         if let Some(c) = c {
-            if c == '/' {
-                if p == Some('/') {
-                    process_lexeme(&current_lexeme, &mut tokens, line);
-                    current_lexeme.clear();
-                    consume_till_end_of_line(source);
-                    line += 1;
-                    continue;
-                } else {
-                    process_lexeme(&current_lexeme, &mut tokens, line);
-                    current_lexeme.clear();
-                    add_token_if_boundary(&c.to_string(), &mut tokens, line);
-                    continue;
-                }
-            }
             match c {
-                '\n' => line += 1,
+                // Newline is a special case since it also resets the column number.
+                '\n' => { line += 1; col = 0; },
                 ' ' | '\r' | '\t' => {
-                    process_lexeme(&current_lexeme, &mut tokens, line);
+                    process_lexeme(&current_lexeme, &mut tokens, line, col);
                     current_lexeme.clear();
                 },
+                '/' if p == Some('/') => {
+                    process_lexeme(&current_lexeme, &mut tokens, line, col);
+                    current_lexeme.clear();
+                    consume_till_end_of_line(source);
+                    // Advance the line and reset column after consuming the comment.
+                    line += 1;
+                    col = 0;
+                },
+                '.' => {
+                    // Handle if '.' is part of a number literal
+                    if !current_lexeme.is_empty() && current_lexeme.chars().all(|c| c.is_ascii_digit()) {
+                        current_lexeme.push(c);
+                    } else {
+                        // treat '.' as a boundary token and process the current lexeme if it's not empty.
+                        process_lexeme(&current_lexeme, &mut tokens, line, col);
+                        current_lexeme.clear();
+                        add_boundary_token(TokenType::BoundaryTokens(BoundaryTokens::Dot), &c.to_string(), &mut tokens, line, col);
+                        continue;
+                    }
+                }
                 _ => {
                     // Check two-char boundary first (greedy).
                     if let Some(p) = p {
                         let cp = format!("{}{}", c, p);
-                        if BOUNDARY_TOKENS.contains_key(cp.as_str()) {
-                            process_lexeme(&current_lexeme, &mut tokens, line);
+                        if let Some(bt) = BOUNDARY_TOKENS.get(cp.as_str()) {
+                            process_lexeme(&current_lexeme, &mut tokens, line, col);
                             current_lexeme.clear();
-                            add_token_if_boundary(&cp, &mut tokens, line);
+                            add_boundary_token(bt.clone(), &cp, &mut tokens, line, col);
                             source.advance();
+                            // Advance the column for the second character in the two-char boundary token.
+                            col += 1;
                             continue;
                         }
                     }
                     // Check single-char boundary.
-                    if BOUNDARY_TOKENS.contains_key(c.to_string().as_str()) {
-                        process_lexeme(&current_lexeme, &mut tokens, line);
+                    let cs = c.to_string();
+                    if let Some(bt) = BOUNDARY_TOKENS.get(cs.as_str()) {
+                        process_lexeme(&current_lexeme, &mut tokens, line, col);
                         current_lexeme.clear();
-                        add_token_if_boundary(&c.to_string(), &mut tokens, line);
+                        add_boundary_token(bt.clone(), &cs, &mut tokens, line, col);
                         continue;
                     }
-                    current_lexeme.push(c);
+                    if c.is_alphanumeric() {
+                        current_lexeme.push(c);
+                    } else {
+                        return Err(LoxError::ScanError {
+                            line,
+                            col,
+                            message: format!("unexpected character '{c}' at column {col}"),
+                        });
+                    }
                 },
             }
         } else {
-            process_lexeme(&current_lexeme, &mut tokens, line);
+            process_lexeme(&current_lexeme, &mut tokens, line, col);
             current_lexeme.clear();
             tokens.push(Token {
                 lexeme: String::new(),
                 token_type: TokenType::Eof,
                 line,
+                col,
                 literal: String::new(),
             });
             break;
