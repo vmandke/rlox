@@ -133,6 +133,33 @@ unary -> ( "!" | "-" ) unary | primary
 primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
 
 */
+
+fn token_to_binary_op(token_type: &TokenType) -> Option<grammar::BinaryOperator> {
+    match token_type {
+        TokenType::BoundaryTokens(BoundaryTokens::Star) => Some(grammar::BinaryOperator::Multiply),
+        TokenType::BoundaryTokens(BoundaryTokens::Slash) => Some(grammar::BinaryOperator::Divide),
+        TokenType::BoundaryTokens(BoundaryTokens::Plus) => Some(grammar::BinaryOperator::Plus),
+        TokenType::BoundaryTokens(BoundaryTokens::Minus) => Some(grammar::BinaryOperator::Minus),
+        TokenType::BoundaryTokens(BoundaryTokens::EqualEqual) => {
+            Some(grammar::BinaryOperator::EqualEqual)
+        }
+        TokenType::BoundaryTokens(BoundaryTokens::BangEqual) => {
+            Some(grammar::BinaryOperator::BangEqual)
+        }
+        TokenType::BoundaryTokens(BoundaryTokens::Less) => Some(grammar::BinaryOperator::LessThan),
+        TokenType::BoundaryTokens(BoundaryTokens::LessEqual) => {
+            Some(grammar::BinaryOperator::LessThanOrEqual)
+        }
+        TokenType::BoundaryTokens(BoundaryTokens::Greater) => {
+            Some(grammar::BinaryOperator::GreaterThan)
+        }
+        TokenType::BoundaryTokens(BoundaryTokens::GreaterEqual) => {
+            Some(grammar::BinaryOperator::GreaterThanOrEqual)
+        }
+        _ => None,
+    }
+}
+
 fn expression(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
     equality(parser)
 }
@@ -144,14 +171,8 @@ fn equality(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
             Some(t) => t.token_type.clone(),
             None => break,
         };
-        let op = match token_type {
-            TokenType::BoundaryTokens(BoundaryTokens::BangEqual) => {
-                grammar::BinaryOperator::BangEqual
-            }
-            TokenType::BoundaryTokens(BoundaryTokens::EqualEqual) => {
-                grammar::BinaryOperator::EqualEqual
-            }
-            _ => break,
+        let Some(op) = token_to_binary_op(&token_type) else {
+            break;
         };
         parser.advance();
         let right = comparison(parser)?;
@@ -171,18 +192,8 @@ fn comparison(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
             Some(t) => t.token_type.clone(),
             None => break,
         };
-        let op = match token_type {
-            TokenType::BoundaryTokens(BoundaryTokens::Greater) => {
-                grammar::BinaryOperator::GreaterThan
-            }
-            TokenType::BoundaryTokens(BoundaryTokens::GreaterEqual) => {
-                grammar::BinaryOperator::GreaterThanOrEqual
-            }
-            TokenType::BoundaryTokens(BoundaryTokens::Less) => grammar::BinaryOperator::LessThan,
-            TokenType::BoundaryTokens(BoundaryTokens::LessEqual) => {
-                grammar::BinaryOperator::LessThanOrEqual
-            }
-            _ => break,
+        let Some(op) = token_to_binary_op(&token_type) else {
+            break;
         };
         parser.advance();
         let right = term(parser)?;
@@ -202,10 +213,8 @@ fn term(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
             Some(t) => t.token_type.clone(),
             None => break,
         };
-        let op = match token_type {
-            TokenType::BoundaryTokens(BoundaryTokens::Plus) => grammar::BinaryOperator::Plus,
-            TokenType::BoundaryTokens(BoundaryTokens::Minus) => grammar::BinaryOperator::Minus,
-            _ => break,
+        let Some(op) = token_to_binary_op(&token_type) else {
+            break;
         };
         parser.advance();
         let right = factor(parser)?;
@@ -225,10 +234,8 @@ fn factor(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
             Some(t) => t.token_type.clone(),
             None => break,
         };
-        let op = match token_type {
-            TokenType::BoundaryTokens(BoundaryTokens::Star) => grammar::BinaryOperator::Multiply,
-            TokenType::BoundaryTokens(BoundaryTokens::Slash) => grammar::BinaryOperator::Divide,
-            _ => break,
+        let Some(op) = token_to_binary_op(&token_type) else {
+            break;
         };
         parser.advance();
         let right = unary(parser)?;
@@ -281,6 +288,10 @@ fn primary(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
             parser.advance();
             Ok(grammar::Expr::Literal(grammar::Literal::String(s)))
         }
+        TokenType::Literals(Literals::Identifier(s)) => {
+            parser.advance();
+            Ok(grammar::Expr::Literal(grammar::Literal::Identifier(s)))
+        }
         TokenType::Keywords(Keywords::True) => {
             parser.advance();
             Ok(grammar::Expr::Literal(grammar::Literal::Boolean(true)))
@@ -318,7 +329,8 @@ mod tests {
         let mut source = Source::new(input.to_string());
         // Test helper .expect("some test string")
         let tokens = scan(&mut source).expect("scan failed");
-        println!("{tokens:?}");
+        // Debug helper
+        // println!("{tokens:?}");
         let mut parser = Parser::new(tokens);
         expression(&mut parser).expect("parse failed")
     }
@@ -336,5 +348,20 @@ mod tests {
         let expr = parse_expr("(3 + 4) * 5");
         assert_eq!(print_lisp(&expr), "(* (group (+ 3 4)) 5)");
         assert_eq!(pretty_print(&expr), "(((3 + 4)) * 5)");
+    }
+
+    #[test]
+    fn test_binary_unary_combo() {
+        let expr = parse_expr("5 + - 3");
+        assert_eq!(print_lisp(&expr), "(+ 5 (- 3))");
+        assert_eq!(pretty_print(&expr), "(5 + -3)");
+    }
+
+    #[test]
+    fn test_eq_chain() {
+        // a == b == c == d == e
+        let expr = parse_expr("a == b == c == d == e");
+        assert_eq!(print_lisp(&expr), "(== (== (== (== a b) c) d) e)");
+        assert_eq!(pretty_print(&expr), "((((a == b) == c) == d) == e)");
     }
 }

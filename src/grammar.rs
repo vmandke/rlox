@@ -20,6 +20,8 @@ I thought it would describe the entire language.
 However assignments, variables, control flow etc are not described here, and are handled later chapters.
 */
 
+use std::fmt::format;
+
 #[derive(Debug)]
 pub enum Expr {
     Literal(Literal),
@@ -40,6 +42,7 @@ pub enum Literal {
     NumberInt(i64),
     NumberFloat(f64),
     String(String),
+    Identifier(String),
     Boolean(bool),
     Nil,
 }
@@ -101,6 +104,7 @@ pub fn print_lisp(expr: &Expr) -> String {
             // ! invokes the format macro; Also create copies as this would be
             // consumed by the display / println
             Literal::String(s) => format!("\"{}\"", s),
+            Literal::Identifier(s) => format!("{}", s),
             Literal::Boolean(b) => b.to_string(),
             Literal::Nil => "nil".to_string(),
         },
@@ -129,6 +133,7 @@ pub fn pretty_print(expr: &Expr) -> String {
             Literal::NumberInt(n) => format!("{:?}", n),
             Literal::NumberFloat(n) => format!("{:?}", n),
             Literal::String(s) => format!("\"{}\"", s),
+            Literal::Identifier(s) => format!("{}", s),
             Literal::Boolean(b) => b.to_string(),
             Literal::Nil => "nil".to_string(),
         },
