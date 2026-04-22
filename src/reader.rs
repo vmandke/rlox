@@ -8,12 +8,11 @@ pub struct Source {
 
 impl Source {
     pub fn new(text: String) -> Self {
-        
         Source {
             // Discussion on lifetimes: How many copies of text are created?
             // Should Source be consumed by tokenizer instead of being passed by mutable reference?
             // TODO (vin): Consider using a more efficient data structure for the source text.
-            
+
             // Challenge: Can the tokenizer work off the original source, and all the collected lexemes be slices of the original source?             // text.chars().enumerate().peekable(); -> Would mean the text needs to be kept alive.
             chars: text.chars().collect::<Vec<_>>().into_iter().peekable(),
         }

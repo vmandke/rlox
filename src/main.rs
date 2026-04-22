@@ -1,9 +1,9 @@
 mod errors;
 mod evaluate;
+mod grammar;
 mod parser;
 mod reader;
 mod tokenize;
-mod grammar;
 
 use crate::errors::LoxError;
 

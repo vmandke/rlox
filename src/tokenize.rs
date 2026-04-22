@@ -377,7 +377,12 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             1,
         );
-        assert_tokens_eq(&tokens[3], "10", &TokenType::Literals(Literals::Number(10.0)), 1);
+        assert_tokens_eq(
+            &tokens[3],
+            "10",
+            &TokenType::Literals(Literals::Number(10.0)),
+            1,
+        );
         assert_tokens_eq(
             &tokens[4],
             ";",
@@ -397,7 +402,12 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             2,
         );
-        assert_tokens_eq(&tokens[8], "20", &TokenType::Literals(Literals::Number(20.0)), 2);
+        assert_tokens_eq(
+            &tokens[8],
+            "20",
+            &TokenType::Literals(Literals::Number(20.0)),
+            2,
+        );
         assert_tokens_eq(
             &tokens[9],
             ";",
@@ -425,7 +435,12 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             1,
         );
-        assert_tokens_eq(&tokens[3], "30", &TokenType::Literals(Literals::Number(30.0)), 1);
+        assert_tokens_eq(
+            &tokens[3],
+            "30",
+            &TokenType::Literals(Literals::Number(30.0)),
+            1,
+        );
         assert_tokens_eq(
             &tokens[4],
             ";",
@@ -454,7 +469,12 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             1,
         );
-        assert_tokens_eq(&tokens[3], "10", &TokenType::Literals(Literals::Number(10.0)), 1);
+        assert_tokens_eq(
+            &tokens[3],
+            "10",
+            &TokenType::Literals(Literals::Number(10.0)),
+            1,
+        );
         assert_tokens_eq(
             &tokens[4],
             ";",
@@ -474,7 +494,12 @@ mod tests {
             &TokenType::BoundaryTokens(BoundaryTokens::Equal),
             1,
         );
-        assert_tokens_eq(&tokens[8], "20", &TokenType::Literals(Literals::Number(20.0)), 1);
+        assert_tokens_eq(
+            &tokens[8],
+            "20",
+            &TokenType::Literals(Literals::Number(20.0)),
+            1,
+        );
         assert_tokens_eq(
             &tokens[9],
             ";",
