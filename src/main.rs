@@ -3,6 +3,7 @@ mod evaluate;
 mod grammar;
 mod parser;
 mod reader;
+mod state;
 mod tokenize;
 
 use crate::errors::LoxError;
@@ -11,8 +12,8 @@ fn runner() -> Result<(), LoxError> {
     let mut source: reader::Source = reader::read_source()?;
     let tokens = tokenize::scan(&mut source)?;
     let ast = parser::parse(tokens)?;
-    // let result = evaluate::interpret(&ast)?;
-    // println!("{:?}", result);
+    let mut env = state::Environment::new();
+    evaluate::evaluate(&ast, &mut env)?;
     Ok(())
 }
 

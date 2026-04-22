@@ -26,6 +26,7 @@ use std::fmt;
 pub enum Stmt {
     PrintStmt { expr: Expr },
     ExprStmt { expr: Expr },
+    VarDeclStmt { identifier_name: String, expr: Expr },
 }
 
 #[derive(Debug)]
@@ -53,7 +54,7 @@ pub enum Literal {
     Nil,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum InterpretedResult {
     NumberInt(i64),
     NumberFloat(f64),

@@ -1,6 +1,7 @@
 use crate::{
     errors::LoxError,
     grammar::{BinaryOperator, Expr, InterpretedResult, Literal, Stmt, UnaryOperator},
+    state::Environment,
 };
 
 //------------ Unary Minus Op ------------
@@ -193,34 +194,42 @@ pub fn binary_divide(
     }
 }
 
-pub fn evaluate(stmt: &Stmt) -> Result<(), LoxError> {
+pub fn evaluate(stmt: &Stmt, env: &mut Environment) -> Result<(), LoxError> {
     match stmt {
         Stmt::PrintStmt { expr } => {
-            let result = interpret(expr)?;
+            let result = interpret(expr, env)?;
             println!("{}", result);
             Ok(())
         }
         Stmt::ExprStmt { expr } => {
-            interpret(expr)?;
+            interpret(expr, env)?;
+            Ok(())
+        }
+        Stmt::VarDeclStmt {
+            identifier_name,
+            expr,
+        } => {
+            let value = interpret(expr, env)?;
+            env.set(identifier_name.clone(), value);
             Ok(())
         }
     }
 }
 
-pub fn interpret(expr: &Expr) -> Result<InterpretedResult, LoxError> {
+pub fn interpret(expr: &Expr, env: &mut Environment) -> Result<InterpretedResult, LoxError> {
     match expr {
         Expr::Literal(lit) => match lit {
             Literal::NumberInt(n) => Ok(InterpretedResult::NumberInt(*n)),
             Literal::NumberFloat(n) => Ok(InterpretedResult::NumberFloat(*n)),
             Literal::String(s) => Ok(InterpretedResult::String(s.clone())),
-            Literal::Identifier(_s) => todo!(),
+            Literal::Identifier(s) => Ok(env.get(s)),
             Literal::Boolean(b) => Ok(InterpretedResult::Boolean(*b)),
             Literal::Nil => Ok(InterpretedResult::Nil),
         },
-        Expr::Grouping(grpexpr) => interpret(grpexpr),
+        Expr::Grouping(grpexpr) => interpret(grpexpr, env),
         Expr::Unary { operator, operand } => match operator {
-            UnaryOperator::Minus => unary_minus(interpret(operand)?),
-            UnaryOperator::Not => unary_not(interpret(operand)?),
+            UnaryOperator::Minus => unary_minus(interpret(operand, env)?),
+            UnaryOperator::Not => unary_not(interpret(operand, env)?),
         },
         Expr::Binary {
             operator,
@@ -228,27 +237,35 @@ pub fn interpret(expr: &Expr) -> Result<InterpretedResult, LoxError> {
             operand2,
         } => match operator {
             BinaryOperator::BangEqual => {
-                binary_not_equal(interpret(operand1)?, interpret(operand2)?)
+                binary_not_equal(interpret(operand1, env)?, interpret(operand2, env)?)
             }
             BinaryOperator::EqualEqual => {
-                binary_equal_equal(interpret(operand1)?, interpret(operand2)?)
+                binary_equal_equal(interpret(operand1, env)?, interpret(operand2, env)?)
             }
             BinaryOperator::LessThan => {
-                binary_less_than(interpret(operand1)?, interpret(operand2)?)
+                binary_less_than(interpret(operand1, env)?, interpret(operand2, env)?)
             }
             BinaryOperator::LessThanOrEqual => {
-                binary_less_than_or_equal(interpret(operand1)?, interpret(operand2)?)
+                binary_less_than_or_equal(interpret(operand1, env)?, interpret(operand2, env)?)
             }
             BinaryOperator::GreaterThan => {
-                binary_greater_than(interpret(operand1)?, interpret(operand2)?)
+                binary_greater_than(interpret(operand1, env)?, interpret(operand2, env)?)
             }
             BinaryOperator::GreaterThanOrEqual => {
-                binary_greater_than_or_equal(interpret(operand1)?, interpret(operand2)?)
+                binary_greater_than_or_equal(interpret(operand1, env)?, interpret(operand2, env)?)
             }
-            BinaryOperator::Plus => binary_plus(interpret(operand1)?, interpret(operand2)?),
-            BinaryOperator::Minus => binary_minus(interpret(operand1)?, interpret(operand2)?),
-            BinaryOperator::Multiply => binary_multiply(interpret(operand1)?, interpret(operand2)?),
-            BinaryOperator::Divide => binary_divide(interpret(operand1)?, interpret(operand2)?),
+            BinaryOperator::Plus => {
+                binary_plus(interpret(operand1, env)?, interpret(operand2, env)?)
+            }
+            BinaryOperator::Minus => {
+                binary_minus(interpret(operand1, env)?, interpret(operand2, env)?)
+            }
+            BinaryOperator::Multiply => {
+                binary_multiply(interpret(operand1, env)?, interpret(operand2, env)?)
+            }
+            BinaryOperator::Divide => {
+                binary_divide(interpret(operand1, env)?, interpret(operand2, env)?)
+            }
         },
     }
 }
@@ -276,15 +293,21 @@ mod tests {
 
     fn evaluate_stmt(input: &str) -> Result<(), LoxError> {
         let stmt = parse_stmt(input)?;
-        evaluate(&stmt)?;
+        let mut env = Environment::new();
+        evaluate(&stmt, &mut env)?;
         Ok(())
     }
 
     fn try_parse_and_interpret(input: &str) -> Result<InterpretedResult, LoxError> {
         let stmt = parse_stmt(input)?;
+        let mut env = Environment::new();
         match stmt {
-            Stmt::ExprStmt { expr } => interpret(&expr),
-            Stmt::PrintStmt { expr } => interpret(&expr),
+            Stmt::ExprStmt { expr } => interpret(&expr, &mut env),
+            Stmt::PrintStmt { expr } => interpret(&expr, &mut env),
+            Stmt::VarDeclStmt {
+                identifier_name,
+                expr,
+            } => interpret(&expr, &mut env),
         }
     }
 
@@ -294,7 +317,8 @@ mod tests {
             operator: UnaryOperator::Minus,
             operand: Box::new(Expr::Literal(Literal::NumberInt(3))),
         };
-        let result = interpret(&expr).unwrap();
+        let mut env = Environment::new();
+        let result = interpret(&expr, &mut env).unwrap();
         assert_eq!(result, InterpretedResult::NumberInt(-3));
     }
 
@@ -338,5 +362,22 @@ mod tests {
     fn test_print_statements() {
         let result = evaluate_stmt(r#"print "one";"#);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_var_assignment() {
+        let result = evaluate_stmt("var a = 5;");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_var_lookup_across_stmts() {
+        let mut env = Environment::new();
+        let stmt_b = parse_stmt("var b = 6;").expect("parse failed");
+        evaluate(&stmt_b, &mut env).expect("evaluate failed");
+        let stmt_c = parse_stmt("var c = b * 3;").expect("parse failed");
+        evaluate(&stmt_c, &mut env).expect("evaluate failed");
+        assert_eq!(env.get("b"), InterpretedResult::NumberInt(6));
+        assert_eq!(env.get("c"), InterpretedResult::NumberInt(18));
     }
 }

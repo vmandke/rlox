@@ -119,23 +119,23 @@ use crate::{
 
 pub fn parse(tokens: Vec<tokenize::Token>) -> Result<grammar::Stmt, LoxError> {
     let mut parser = Parser::new(tokens);
-    statement(&mut parser)
+    declaration(&mut parser)
 }
 
 /*
 
-program        → statement* EOF ;
-statement      → exprStmt | printStmt ;
-exprStmt       → expression ";" ;
-printStmt      → "print" expression ";" ;
-
-expr -> equality
-equality -> comparison ( ( "!=" | "==" ) comparison )*
-comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )
-term -> factor ( ( "-" | "+" ) factor )*
-factor -> unary ( ( "/" | "*" ) unary )*
-unary -> ( "!" | "-" ) unary | primary
-primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
+program      ->  declaration* EOF ;
+declaration  ->  varDecl | statement ;
+statement    ->  exprStmt | printStmt ;
+exprStmt     ->  expression ";" ;
+printStmt    ->  "print" expression ";" ;
+expr         ->  equality
+equality     ->  comparison ( ( "!=" | "==" ) comparison )*
+comparison   ->  term ( ( ">" | ">=" | "<" | "<=" ) term )
+term         ->  factor ( ( "-" | "+" ) factor )*
+factor       ->  unary ( ( "/" | "*" ) unary )*
+unary        ->  ( "!" | "-" ) unary | primary
+primary      ->  NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
 
 */
 
@@ -162,6 +162,53 @@ fn token_to_binary_op(token_type: &TokenType) -> Option<grammar::BinaryOperator>
             Some(grammar::BinaryOperator::GreaterThanOrEqual)
         }
         _ => None,
+    }
+}
+
+fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
+    // exprStmt | printStmt ;
+    let token_type = match parser.peek() {
+        Some(t) => t.token_type.clone(),
+        None => {
+            return Err(LoxError::ParserErrorStatementExpected(
+                "Primary rule expected an expression but found end of input".into(),
+            ));
+        }
+    };
+    match token_type {
+        TokenType::Keywords(Keywords::Var) => {
+            // "var" IDENTIFIER ( "=" expression )? ";" ;
+            parser.advance();
+            let name = match parser.peek() {
+                Some(t) => match &t.token_type {
+                    TokenType::Literals(Literals::Identifier(s)) => s.clone(),
+                    _ => {
+                        return Err(LoxError::ParserErrorExpressionExpected(
+                            "Expected identifier after 'var'".into(),
+                        ));
+                    }
+                },
+                None => {
+                    return Err(LoxError::ParserErrorExpressionExpected(
+                        "Expected identifier after 'var'".into(),
+                    ));
+                }
+            };
+            parser.advance();
+            let init_expr = match parser.peek() {
+                Some(t) if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::Equal) => {
+                    parser.advance();
+                    expression(parser)?
+                }
+                _ => grammar::Expr::Literal(grammar::Literal::Nil),
+            };
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
+            Ok(grammar::Stmt::VarDeclStmt {
+                identifier_name: name,
+                expr: init_expr,
+            })
+        }
+        _ => statement(parser),
     }
 }
 
@@ -400,5 +447,39 @@ mod tests {
         // error is caught at runtime, not parse time
         let expr = parse_expr(r#"3 < "pancake""#);
         assert_eq!(print_lisp(&expr), r#"(< 3 "pancake")"#);
+    }
+
+    #[test]
+    fn test_var_decl() {
+        let mut source = Source::new("var a = 5;".to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let stmt = parse(tokens).expect("parse failed");
+        match stmt {
+            grammar::Stmt::VarDeclStmt {
+                identifier_name,
+                expr,
+            } => {
+                assert_eq!(identifier_name, "a");
+                assert_eq!(print_lisp(&expr), "5");
+            }
+            _ => panic!("expected VarDeclStmt"),
+        }
+    }
+
+    #[test]
+    fn test_var_decl_no_init() {
+        let mut source = Source::new("var b;".to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let stmt = parse(tokens).expect("parse failed");
+        match stmt {
+            grammar::Stmt::VarDeclStmt {
+                identifier_name,
+                expr,
+            } => {
+                assert_eq!(identifier_name, "b");
+                assert_eq!(print_lisp(&expr), "nil");
+            }
+            _ => panic!("expected VarDeclStmt"),
+        }
     }
 }
