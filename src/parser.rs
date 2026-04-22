@@ -364,4 +364,11 @@ mod tests {
         assert_eq!(print_lisp(&expr), "(== (== (== (== a b) c) d) e)");
         assert_eq!(pretty_print(&expr), "((((a == b) == c) == d) == e)");
     }
+
+    #[test]
+    fn test_number_less_than_string_parses() {
+        // error is caught at runtime, not parse time
+        let expr = parse_expr(r#"3 < "pancake""#);
+        assert_eq!(print_lisp(&expr), r#"(< 3 "pancake")"#);
+    }
 }

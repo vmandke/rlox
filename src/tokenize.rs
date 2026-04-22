@@ -133,6 +133,27 @@ fn consume_till_end_of_line(source: &mut reader::Source) {
     }
 }
 
+fn consume_string(
+    source: &mut reader::Source,
+    line: usize,
+    col: usize,
+) -> Result<String, LoxError> {
+    let mut s = String::new();
+    loop {
+        match source.advance() {
+            Some('"') => return Ok(s),
+            Some('\n') | None => {
+                return Err(LoxError::ScanError {
+                    line,
+                    col,
+                    message: "Unterminated string literal".into(),
+                });
+            }
+            Some(c) => s.push(c),
+        }
+    }
+}
+
 fn consume_till_end_of_block_comment(
     source: &mut reader::Source,
     start_line: usize,
@@ -202,9 +223,6 @@ fn process_lexeme(
         TokenType::Literals(Literals::NumberInt(lexeme.parse::<i64>().unwrap()))
     } else if lexeme.parse::<f64>().is_ok() {
         TokenType::Literals(Literals::NumberFloat(lexeme.parse::<f64>().unwrap()))
-    } else if lexeme.starts_with('"') && lexeme.ends_with('"') {
-        // TODO (vin): Handle string literals properly, including escape sequences and multi-line strings.
-        TokenType::Literals(Literals::String(lexeme.to_string()))
     } else if lexeme.chars().next().is_some() && lexeme.chars().next().unwrap().is_ascii_digit() {
         // Handle the case where the lexeme starts with a digit but isn't a valid number literal.
         // 123abc
@@ -276,6 +294,18 @@ pub fn scan(source: &mut reader::Source) -> Result<Vec<Token>, LoxError> {
                             );
                         }
                     }
+                }
+                '"' => {
+                    process_lexeme(&current_lexeme, &mut tokens, line, col)?;
+                    current_lexeme.clear();
+                    let s = consume_string(source, line, col)?;
+                    tokens.push(Token {
+                        lexeme: format!("\"{}\"", s),
+                        token_type: TokenType::Literals(Literals::String(s.clone())),
+                        line,
+                        col,
+                        literal: s,
+                    });
                 }
                 '.' => {
                     // Handle if '.' is part of a number literal

@@ -250,10 +250,14 @@ mod tests {
     };
 
     fn parse_and_interpret(input: &str) -> InterpretedResult {
+        try_parse_and_interpret(input).expect("interpret failed")
+    }
+
+    fn try_parse_and_interpret(input: &str) -> Result<InterpretedResult, LoxError> {
         let mut source = Source::new(input.to_string());
         let tokens = scan(&mut source).expect("scan failed");
         let expr = parse(tokens).expect("parse failed");
-        interpret(&expr).expect("interpret failed")
+        interpret(&expr)
     }
 
     #[test]
@@ -293,5 +297,12 @@ mod tests {
             parse_and_interpret("3 != 4"),
             InterpretedResult::Boolean(true)
         );
+    }
+
+    #[test]
+    fn test_type_error_less_than_string() {
+        // 3 < "pancake" should be a runtime type error
+        let result = try_parse_and_interpret(r#"3 < "pancake""#);
+        assert!(result.is_err());
     }
 }
