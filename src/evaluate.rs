@@ -193,16 +193,17 @@ pub fn binary_divide(
     }
 }
 
-fn eval_print(expr: &Expr) -> Result<(), LoxError> {
-    let result = interpret(expr)?;
-    println!("{}", result);
-    Ok(())
-}
-
 pub fn evaluate(stmt: &Stmt) -> Result<(), LoxError> {
     match stmt {
-        Stmt::PrintStmt { expr } => eval_print(expr),
-        Stmt::ExprStmt { expr } => !todo!(),
+        Stmt::PrintStmt { expr } => {
+            let result = interpret(expr)?;
+            println!("{}", result);
+            Ok(())
+        }
+        Stmt::ExprStmt { expr } => {
+            interpret(expr)?;
+            Ok(())
+        }
     }
 }
 
@@ -266,10 +267,21 @@ mod tests {
         try_parse_and_interpret(input).expect("interpret failed")
     }
 
-    fn try_parse_and_interpret(input: &str) -> Result<InterpretedResult, LoxError> {
+    fn parse_stmt(input: &str) -> Result<Stmt, LoxError> {
         let mut source = Source::new(input.to_string());
         let tokens = scan(&mut source).expect("scan failed");
         let stmt = parse(tokens).expect("parse failed");
+        Ok(stmt)
+    }
+
+    fn evaluate_stmt(input: &str) -> Result<(), LoxError> {
+        let stmt = parse_stmt(input)?;
+        evaluate(&stmt)?;
+        Ok(())
+    }
+
+    fn try_parse_and_interpret(input: &str) -> Result<InterpretedResult, LoxError> {
+        let stmt = parse_stmt(input)?;
         match stmt {
             Stmt::ExprStmt { expr } => interpret(&expr),
             Stmt::PrintStmt { expr } => interpret(&expr),
@@ -320,5 +332,11 @@ mod tests {
         // 3 < "pancake" should be a runtime type error
         let result = try_parse_and_interpret(r#"3 < "pancake";"#);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_print_statements() {
+        let result = evaluate_stmt(r#"print "one";"#);
+        assert!(result.is_ok());
     }
 }
