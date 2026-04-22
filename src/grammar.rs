@@ -20,9 +20,13 @@ I thought it would describe the entire language.
 However assignments, variables, control flow etc are not described here, and are handled later chapters.
 */
 
-use std::fmt::format;
+use std::fmt;
 
-use crate::errors::LoxError;
+#[derive(Debug)]
+pub enum Stmt {
+    PrintStmt { expr: Expr },
+    ExprStmt { expr: Expr },
+}
 
 #[derive(Debug)]
 pub enum Expr {
@@ -56,6 +60,18 @@ pub enum InterpretedResult {
     String(String),
     Boolean(bool),
     Nil,
+}
+
+impl fmt::Display for InterpretedResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InterpretedResult::NumberInt(n) => write!(f, "{}", n),
+            InterpretedResult::NumberFloat(n) => write!(f, "{}", n),
+            InterpretedResult::String(s) => write!(f, "{}", s),
+            InterpretedResult::Boolean(b) => write!(f, "{}", b),
+            InterpretedResult::Nil => write!(f, "nil"),
+        }
+    }
 }
 
 #[derive(Debug)]

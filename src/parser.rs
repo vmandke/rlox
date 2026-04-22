@@ -117,12 +117,17 @@ use crate::{
     tokenize::{self, BoundaryTokens, Keywords, Literals, Token, TokenType},
 };
 
-pub fn parse(tokens: Vec<tokenize::Token>) -> Result<grammar::Expr, LoxError> {
+pub fn parse(tokens: Vec<tokenize::Token>) -> Result<grammar::Stmt, LoxError> {
     let mut parser = Parser::new(tokens);
-    expression(&mut parser)
+    statement(&mut parser)
 }
 
 /*
+
+program        → statement* EOF ;
+statement      → exprStmt | printStmt ;
+exprStmt       → expression ";" ;
+printStmt      → "print" expression ";" ;
 
 expr -> equality
 equality -> comparison ( ( "!=" | "==" ) comparison )*
@@ -157,6 +162,31 @@ fn token_to_binary_op(token_type: &TokenType) -> Option<grammar::BinaryOperator>
             Some(grammar::BinaryOperator::GreaterThanOrEqual)
         }
         _ => None,
+    }
+}
+
+fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
+    // exprStmt | printStmt ;
+    let token_type = match parser.peek() {
+        Some(t) => t.token_type.clone(),
+        None => {
+            return Err(LoxError::ParserErrorStatementExpected(
+                "Primary rule expected an expression but found end of input".into(),
+            ));
+        }
+    };
+    match token_type {
+        TokenType::Keywords(Keywords::Print) => {
+            parser.advance();
+            let expr = expression(parser)?;
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
+            Ok(grammar::Stmt::PrintStmt { expr })
+        }
+        _ => {
+            let expr = expression(parser)?;
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
+            Ok(grammar::Stmt::ExprStmt { expr })
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     errors::LoxError,
-    grammar::{BinaryOperator, Expr, InterpretedResult, Literal, UnaryOperator},
+    grammar::{BinaryOperator, Expr, InterpretedResult, Literal, Stmt, UnaryOperator},
 };
 
 //------------ Unary Minus Op ------------
@@ -193,6 +193,19 @@ pub fn binary_divide(
     }
 }
 
+fn eval_print(expr: &Expr) -> Result<(), LoxError> {
+    let result = interpret(expr)?;
+    println!("{}", result);
+    Ok(())
+}
+
+pub fn evaluate(stmt: &Stmt) -> Result<(), LoxError> {
+    match stmt {
+        Stmt::PrintStmt { expr } => eval_print(expr),
+        Stmt::ExprStmt { expr } => !todo!(),
+    }
+}
+
 pub fn interpret(expr: &Expr) -> Result<InterpretedResult, LoxError> {
     match expr {
         Expr::Literal(lit) => match lit {
@@ -256,8 +269,11 @@ mod tests {
     fn try_parse_and_interpret(input: &str) -> Result<InterpretedResult, LoxError> {
         let mut source = Source::new(input.to_string());
         let tokens = scan(&mut source).expect("scan failed");
-        let expr = parse(tokens).expect("parse failed");
-        interpret(&expr)
+        let stmt = parse(tokens).expect("parse failed");
+        match stmt {
+            Stmt::ExprStmt { expr } => interpret(&expr),
+            Stmt::PrintStmt { expr } => interpret(&expr),
+        }
     }
 
     #[test]
@@ -274,7 +290,7 @@ mod tests {
     fn test_grouped_multiply() {
         // (3 + 4) * 5 = 35
         assert_eq!(
-            parse_and_interpret("(3 + 4) * 5"),
+            parse_and_interpret("(3 + 4) * 5;"),
             InterpretedResult::NumberInt(35)
         );
     }
@@ -282,19 +298,19 @@ mod tests {
     #[test]
     fn test_comparison() {
         assert_eq!(
-            parse_and_interpret("3 < 5"),
+            parse_and_interpret("3 < 5;"),
             InterpretedResult::Boolean(true)
         );
         assert_eq!(
-            parse_and_interpret("5 > 3"),
+            parse_and_interpret("5 > 3;"),
             InterpretedResult::Boolean(true)
         );
         assert_eq!(
-            parse_and_interpret("3 == 3"),
+            parse_and_interpret("3 == 3;"),
             InterpretedResult::Boolean(true)
         );
         assert_eq!(
-            parse_and_interpret("3 != 4"),
+            parse_and_interpret("3 != 4;"),
             InterpretedResult::Boolean(true)
         );
     }
@@ -302,7 +318,7 @@ mod tests {
     #[test]
     fn test_type_error_less_than_string() {
         // 3 < "pancake" should be a runtime type error
-        let result = try_parse_and_interpret(r#"3 < "pancake""#);
+        let result = try_parse_and_interpret(r#"3 < "pancake";"#);
         assert!(result.is_err());
     }
 }

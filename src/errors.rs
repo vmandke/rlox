@@ -17,6 +17,7 @@ pub enum LoxError {
     InterpretUnaryMinusUndefined(String),
     InterpretUnaryNotUndefined(String),
     InterpretBinaryOpUndefined(String),
+    ParserErrorStatementExpected(String),
 }
 
 impl fmt::Display for LoxError {
@@ -40,6 +41,7 @@ impl fmt::Display for LoxError {
             LoxError::InterpretUnaryMinusUndefined(msg) => write!(f, "Interpret error: {msg}"),
             LoxError::InterpretUnaryNotUndefined(msg) => write!(f, "Interpret error: {msg}"),
             LoxError::InterpretBinaryOpUndefined(msg) => write!(f, "Interpret error: {msg}"),
+            LoxError::ParserErrorStatementExpected(msg) => write!(f, "Interpret error: {msg}"),
         }
     }
 }
@@ -56,6 +58,7 @@ impl std::error::Error for LoxError {
             LoxError::InterpretUnaryMinusUndefined(_) => None,
             LoxError::InterpretUnaryNotUndefined(_) => None,
             LoxError::InterpretBinaryOpUndefined(_) => None,
+            LoxError::ParserErrorStatementExpected(_) => None,
         }
     }
 }
