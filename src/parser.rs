@@ -66,14 +66,275 @@ idx 7: seen EOF                                                 => return ((NUMB
 
 */
 
-pub struct AST {
-    // TODO (vin): Define the structure of the AST here.
+pub struct Parser {
+    tokens: Vec<Token>,
+    pos: usize,
 }
 
-use crate::{errors::LoxError, tokenize};
+impl Parser {
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Parser {
+            tokens: tokens,
+            pos: 0,
+        }
+    }
+    fn get(&self, _pos: usize) -> Option<&Token> {
+        if _pos < self.tokens.len() {
+            Some(&self.tokens[_pos])
+        } else {
+            None
+        }
+    }
 
-pub fn parse(tokens: Vec<tokenize::Token>) -> Result<AST, LoxError> {
-    // TODO (vin): Implement the actual parsing logic here.
-    // For now, just return an empty AST.
-    Ok(AST {})
+    pub fn advance(&mut self) -> Option<&Token> {
+        self.pos += 1;
+        self.get(self.pos)
+    }
+
+    pub fn peek(&mut self) -> Option<&Token> {
+        self.get(self.pos)
+    }
+
+    pub fn consume(&mut self, expected_token_type: &TokenType) -> Result<&Token, LoxError> {
+        if let Some(token) = self.peek() {
+            if &token.token_type == expected_token_type {
+                return self.advance().ok_or_else(|| {
+                    LoxError::ParserErrorCannotConsumeExpectedType {
+                        expected_token_type: format!("{:?}", expected_token_type),
+                    }
+                });
+            }
+        }
+        Err(LoxError::ParserErrorCannotConsumeExpectedType {
+            expected_token_type: format!("{:?}", expected_token_type),
+        })
+    }
+}
+
+use crate::{
+    errors::LoxError,
+    grammar,
+    tokenize::{self, BoundaryTokens, Keywords, Literals, Token, TokenType},
+};
+
+pub fn parse(tokens: Vec<tokenize::Token>) -> Result<grammar::Expr, LoxError> {
+    let mut parser = Parser::new(tokens);
+    expression(&mut parser)
+}
+
+/*
+
+expr -> equality
+equality -> comparison ( ( "!=" | "==" ) comparison )*
+comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )
+term -> factor ( ( "-" | "+" ) factor )*
+factor -> unary ( ( "/" | "*" ) unary )*
+unary -> ( "!" | "-" ) unary | primary
+primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
+
+*/
+fn expression(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    equality(parser)
+}
+
+fn equality(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let mut expr = comparison(parser)?;
+    loop {
+        let token_type = match parser.peek() {
+            Some(t) => t.token_type.clone(),
+            None => break,
+        };
+        let op = match token_type {
+            TokenType::BoundaryTokens(BoundaryTokens::BangEqual) => {
+                grammar::BinaryOperator::BangEqual
+            }
+            TokenType::BoundaryTokens(BoundaryTokens::EqualEqual) => {
+                grammar::BinaryOperator::EqualEqual
+            }
+            _ => break,
+        };
+        parser.advance();
+        let right = comparison(parser)?;
+        expr = grammar::Expr::Binary {
+            operator: op,
+            operand1: Box::new(expr),
+            operand2: Box::new(right),
+        };
+    }
+    Ok(expr)
+}
+
+fn comparison(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let mut expr = term(parser)?;
+    loop {
+        let token_type = match parser.peek() {
+            Some(t) => t.token_type.clone(),
+            None => break,
+        };
+        let op = match token_type {
+            TokenType::BoundaryTokens(BoundaryTokens::Greater) => {
+                grammar::BinaryOperator::GreaterThan
+            }
+            TokenType::BoundaryTokens(BoundaryTokens::GreaterEqual) => {
+                grammar::BinaryOperator::GreaterThanOrEqual
+            }
+            TokenType::BoundaryTokens(BoundaryTokens::Less) => grammar::BinaryOperator::LessThan,
+            TokenType::BoundaryTokens(BoundaryTokens::LessEqual) => {
+                grammar::BinaryOperator::LessThanOrEqual
+            }
+            _ => break,
+        };
+        parser.advance();
+        let right = term(parser)?;
+        expr = grammar::Expr::Binary {
+            operator: op,
+            operand1: Box::new(expr),
+            operand2: Box::new(right),
+        };
+    }
+    Ok(expr)
+}
+
+fn term(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let mut expr = factor(parser)?;
+    loop {
+        let token_type = match parser.peek() {
+            Some(t) => t.token_type.clone(),
+            None => break,
+        };
+        let op = match token_type {
+            TokenType::BoundaryTokens(BoundaryTokens::Plus) => grammar::BinaryOperator::Plus,
+            TokenType::BoundaryTokens(BoundaryTokens::Minus) => grammar::BinaryOperator::Minus,
+            _ => break,
+        };
+        parser.advance();
+        let right = factor(parser)?;
+        expr = grammar::Expr::Binary {
+            operator: op,
+            operand1: Box::new(expr),
+            operand2: Box::new(right),
+        };
+    }
+    Ok(expr)
+}
+
+fn factor(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let mut expr = unary(parser)?;
+    loop {
+        let token_type = match parser.peek() {
+            Some(t) => t.token_type.clone(),
+            None => break,
+        };
+        let op = match token_type {
+            TokenType::BoundaryTokens(BoundaryTokens::Star) => grammar::BinaryOperator::Multiply,
+            TokenType::BoundaryTokens(BoundaryTokens::Slash) => grammar::BinaryOperator::Divide,
+            _ => break,
+        };
+        parser.advance();
+        let right = unary(parser)?;
+        expr = grammar::Expr::Binary {
+            operator: op,
+            operand1: Box::new(expr),
+            operand2: Box::new(right),
+        };
+    }
+    Ok(expr)
+}
+
+fn unary(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let token_type = match parser.peek() {
+        Some(t) => t.token_type.clone(),
+        None => return primary(parser),
+    };
+    let op = match token_type {
+        TokenType::BoundaryTokens(BoundaryTokens::Bang) => grammar::UnaryOperator::Not,
+        TokenType::BoundaryTokens(BoundaryTokens::Minus) => grammar::UnaryOperator::Minus,
+        _ => return primary(parser),
+    };
+    parser.advance();
+    let operand = unary(parser)?;
+    Ok(grammar::Expr::Unary {
+        operator: op,
+        operand: Box::new(operand),
+    })
+}
+
+fn primary(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let token_type = match parser.peek() {
+        Some(t) => t.token_type.clone(),
+        None => {
+            return Err(LoxError::ParserErrorExpressionExpected(
+                "Primary rule expected an expression but found end of input".into(),
+            ));
+        }
+    };
+    match token_type {
+        TokenType::Literals(Literals::NumberInt(n)) => {
+            parser.advance();
+            Ok(grammar::Expr::Literal(grammar::Literal::NumberInt(n)))
+        }
+        TokenType::Literals(Literals::NumberFloat(n)) => {
+            parser.advance();
+            Ok(grammar::Expr::Literal(grammar::Literal::NumberFloat(n)))
+        }
+        TokenType::Literals(Literals::String(s)) => {
+            parser.advance();
+            Ok(grammar::Expr::Literal(grammar::Literal::String(s)))
+        }
+        TokenType::Keywords(Keywords::True) => {
+            parser.advance();
+            Ok(grammar::Expr::Literal(grammar::Literal::Boolean(true)))
+        }
+        TokenType::Keywords(Keywords::False) => {
+            parser.advance();
+            Ok(grammar::Expr::Literal(grammar::Literal::Boolean(false)))
+        }
+        TokenType::Keywords(Keywords::Nil) | TokenType::Literals(Literals::Nil) => {
+            parser.advance();
+            Ok(grammar::Expr::Literal(grammar::Literal::Nil))
+        }
+        TokenType::BoundaryTokens(BoundaryTokens::LeftParen) => {
+            parser.advance();
+            let expr = expression(parser)?;
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::RightParen))?;
+            Ok(grammar::Expr::Grouping(Box::new(expr)))
+        }
+        _ => Err(LoxError::ParserErrorExpressionExpected(
+            "Primary rule expected an expression".into(),
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        grammar::{pretty_print, print_lisp},
+        reader::Source,
+        tokenize::scan,
+    };
+
+    fn parse_expr(input: &str) -> grammar::Expr {
+        let mut source = Source::new(input.to_string());
+        // Test helper .expect("some test string")
+        let tokens = scan(&mut source).expect("scan failed");
+        println!("{tokens:?}");
+        let mut parser = Parser::new(tokens);
+        expression(&mut parser).expect("parse failed")
+    }
+
+    #[test]
+    fn test_number() {
+        let expr = parse_expr("5");
+        assert_eq!(print_lisp(&expr), "5");
+        assert_eq!(pretty_print(&expr), "5");
+    }
+
+    #[test]
+    fn test_grouped_multiply() {
+        // (3 + 4) * 5  =>  lisp: (* (+ 3 4) (group))  =>  "(* (group (+ 3 4)) 5)"
+        let expr = parse_expr("(3 + 4) * 5");
+        assert_eq!(print_lisp(&expr), "(* (group (+ 3 4)) 5)");
+        assert_eq!(pretty_print(&expr), "(((3 + 4)) * 5)");
+    }
 }

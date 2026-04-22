@@ -10,9 +10,9 @@ impl fmt::Display for EvalResult {
     }
 }
 
-use crate::{errors::LoxError, parser};
+use crate::{errors::LoxError, grammar, parser};
 
-pub fn evaluate(ast: parser::AST) -> Result<EvalResult, LoxError> {
+pub fn evaluate(ast: grammar::Expr) -> Result<EvalResult, LoxError> {
     // TODO (vin): Implement the actual evaluation logic here.
     // For now, just return an empty result.
     Ok(EvalResult {})

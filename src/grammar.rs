@@ -20,6 +20,7 @@ I thought it would describe the entire language.
 However assignments, variables, control flow etc are not described here, and are handled later chapters.
 */
 
+#[derive(Debug)]
 pub enum Expr {
     Literal(Literal),
     Grouping(Box<Expr>),
@@ -34,18 +35,22 @@ pub enum Expr {
     },
 }
 
+#[derive(Debug)]
 pub enum Literal {
-    Number(f64),
+    NumberInt(i64),
+    NumberFloat(f64),
     String(String),
     Boolean(bool),
     Nil,
 }
 
+#[derive(Debug)]
 pub enum UnaryOperator {
     Minus,
     Not,
 }
 
+#[derive(Debug)]
 pub enum BinaryOperator {
     EqualEqual,
     BangEqual,
@@ -90,7 +95,8 @@ impl BinaryOperator {
 pub fn print_lisp(expr: &Expr) -> String {
     match expr {
         Expr::Literal(lit) => match lit {
-            Literal::Number(n) => n.to_string(),
+            Literal::NumberInt(n) => format!("{:?}", n),
+            Literal::NumberFloat(n) => format!("{:?}", n),
             // Verify:: If the printer consumes the string, should it ??
             // ! invokes the format macro; Also create copies as this would be
             // consumed by the display / println
@@ -120,7 +126,8 @@ pub fn print_lisp(expr: &Expr) -> String {
 pub fn pretty_print(expr: &Expr) -> String {
     match expr {
         Expr::Literal(lit) => match lit {
-            Literal::Number(n) => n.to_string(),
+            Literal::NumberInt(n) => format!("{:?}", n),
+            Literal::NumberFloat(n) => format!("{:?}", n),
             Literal::String(s) => format!("\"{}\"", s),
             Literal::Boolean(b) => b.to_string(),
             Literal::Nil => "nil".to_string(),
@@ -155,13 +162,29 @@ mod tests {
             operator: BinaryOperator::Multiply,
             operand1: Box::new(Expr::Unary {
                 operator: UnaryOperator::Minus,
-                operand: Box::new(Expr::Literal(Literal::Number(123.0))),
+                operand: Box::new(Expr::Literal(Literal::NumberInt(123))),
             }),
-            operand2: Box::new(Expr::Grouping(Box::new(Expr::Literal(Literal::Number(
-                45.67,
-            ))))),
+            operand2: Box::new(Expr::Grouping(Box::new(Expr::Literal(
+                Literal::NumberFloat(45.67),
+            )))),
         };
         assert_eq!(print_lisp(&expr), "(* (- 123) (group 45.67))");
         assert_eq!(pretty_print(&expr), "(-123 * (45.67))")
+    }
+
+    #[test]
+    fn test_grouped_multiply() {
+        //(3 + 4) * 5")
+        let expr = Expr::Binary {
+            operator: BinaryOperator::Multiply,
+            operand1: Box::new(Expr::Grouping(Box::new(Expr::Binary {
+                operator: BinaryOperator::Plus,
+                operand1: Box::new(Expr::Literal(Literal::NumberInt(3))),
+                operand2: Box::new(Expr::Literal(Literal::NumberInt(4))),
+            }))),
+            operand2: Box::new(Expr::Literal(Literal::NumberInt(5))),
+        };
+        assert_eq!(print_lisp(&expr), "(* (group (+ 3 4)) 5)");
+        assert_eq!(pretty_print(&expr), "(((3 + 4)) * 5)");
     }
 }

@@ -26,7 +26,8 @@ pub enum Keywords {
 pub enum Literals {
     Identifier(String),
     String(String),
-    Number(f64),
+    NumberFloat(f64),
+    NumberInt(i64),
     Nil,
 }
 
@@ -115,9 +116,10 @@ static BOUNDARY_TOKENS: LazyLock<HashMap<&str, TokenType>> = LazyLock::new(|| {
     m
 });
 
+#[derive(Debug)]
 pub struct Token {
     lexeme: String,
-    token_type: TokenType,
+    pub token_type: TokenType,
     col: usize,
     line: usize,
     literal: String,
@@ -197,9 +199,9 @@ fn process_lexeme(
     let token_type: TokenType = if KEYWORDS.contains_key(lexeme) {
         KEYWORDS[lexeme].clone()
     } else if lexeme.parse::<i64>().is_ok() {
-        TokenType::Literals(Literals::Number(lexeme.parse::<i64>().unwrap() as f64))
+        TokenType::Literals(Literals::NumberInt(lexeme.parse::<i64>().unwrap()))
     } else if lexeme.parse::<f64>().is_ok() {
-        TokenType::Literals(Literals::Number(lexeme.parse::<f64>().unwrap()))
+        TokenType::Literals(Literals::NumberFloat(lexeme.parse::<f64>().unwrap()))
     } else if lexeme.starts_with('"') && lexeme.ends_with('"') {
         // TODO (vin): Handle string literals properly, including escape sequences and multi-line strings.
         TokenType::Literals(Literals::String(lexeme.to_string()))
@@ -380,7 +382,7 @@ mod tests {
         assert_tokens_eq(
             &tokens[3],
             "10",
-            &TokenType::Literals(Literals::Number(10.0)),
+            &TokenType::Literals(Literals::NumberInt(10)),
             1,
         );
         assert_tokens_eq(
@@ -405,7 +407,7 @@ mod tests {
         assert_tokens_eq(
             &tokens[8],
             "20",
-            &TokenType::Literals(Literals::Number(20.0)),
+            &TokenType::Literals(Literals::NumberInt(20)),
             2,
         );
         assert_tokens_eq(
@@ -419,7 +421,7 @@ mod tests {
 
     #[test]
     fn test_orchid() {
-        let mut source = reader::Source::new("var orchid = 30;".into());
+        let mut source = reader::Source::new("var orchid = 30.0;".into());
         let tokens = scan(&mut source).unwrap();
         assert_eq!(tokens.len(), 6);
         assert_tokens_eq(&tokens[0], "var", &TokenType::Keywords(Keywords::Var), 1);
@@ -437,8 +439,8 @@ mod tests {
         );
         assert_tokens_eq(
             &tokens[3],
-            "30",
-            &TokenType::Literals(Literals::Number(30.0)),
+            "30.0",
+            &TokenType::Literals(Literals::NumberFloat(30.0)),
             1,
         );
         assert_tokens_eq(
@@ -453,7 +455,7 @@ mod tests {
     #[test]
     fn test_nested_block_comment() {
         let mut source =
-            reader::Source::new("var x = 10; /* this /*is*/ a comment */ var y = 20;".into());
+            reader::Source::new("var x = 10; /* this /*is*/ a comment */ var y = 20.53;".into());
         let tokens = scan(&mut source).unwrap();
         assert_eq!(tokens.len(), 11);
         assert_tokens_eq(&tokens[0], "var", &TokenType::Keywords(Keywords::Var), 1);
@@ -472,7 +474,7 @@ mod tests {
         assert_tokens_eq(
             &tokens[3],
             "10",
-            &TokenType::Literals(Literals::Number(10.0)),
+            &TokenType::Literals(Literals::NumberInt(10)),
             1,
         );
         assert_tokens_eq(
@@ -496,8 +498,8 @@ mod tests {
         );
         assert_tokens_eq(
             &tokens[8],
-            "20",
-            &TokenType::Literals(Literals::Number(20.0)),
+            "20.53",
+            &TokenType::Literals(Literals::NumberFloat(20.53)),
             1,
         );
         assert_tokens_eq(
