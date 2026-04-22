@@ -22,6 +22,8 @@ However assignments, variables, control flow etc are not described here, and are
 
 use std::fmt::format;
 
+use crate::errors::LoxError;
+
 #[derive(Debug)]
 pub enum Expr {
     Literal(Literal),
@@ -43,6 +45,15 @@ pub enum Literal {
     NumberFloat(f64),
     String(String),
     Identifier(String),
+    Boolean(bool),
+    Nil,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum InterpretedResult {
+    NumberInt(i64),
+    NumberFloat(f64),
+    String(String),
     Boolean(bool),
     Nil,
 }

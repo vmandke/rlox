@@ -14,6 +14,9 @@ pub enum LoxError {
     },
     ParserErrorAdvanceExpectedAToken(String),
     ParserErrorExpressionExpected(String),
+    InterpretUnaryMinusUndefined(String),
+    InterpretUnaryNotUndefined(String),
+    InterpretBinaryOpUndefined(String),
 }
 
 impl fmt::Display for LoxError {
@@ -34,6 +37,9 @@ impl fmt::Display for LoxError {
             }
             LoxError::ParserErrorAdvanceExpectedAToken(msg) => write!(f, "Parser error: {msg}"),
             LoxError::ParserErrorExpressionExpected(msg) => write!(f, "Parser error: {msg}"),
+            LoxError::InterpretUnaryMinusUndefined(msg) => write!(f, "Interpret error: {msg}"),
+            LoxError::InterpretUnaryNotUndefined(msg) => write!(f, "Interpret error: {msg}"),
+            LoxError::InterpretBinaryOpUndefined(msg) => write!(f, "Interpret error: {msg}"),
         }
     }
 }
@@ -47,6 +53,9 @@ impl std::error::Error for LoxError {
             LoxError::ParserErrorCannotConsumeExpectedType { .. } => None,
             LoxError::ParserErrorAdvanceExpectedAToken(_) => None,
             LoxError::ParserErrorExpressionExpected(_) => None,
+            LoxError::InterpretUnaryMinusUndefined(_) => None,
+            LoxError::InterpretUnaryNotUndefined(_) => None,
+            LoxError::InterpretBinaryOpUndefined(_) => None,
         }
     }
 }
