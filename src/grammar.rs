@@ -27,6 +27,8 @@ pub enum Stmt {
     PrintStmt { expr: Expr },
     ExprStmt { expr: Expr },
     VarDeclStmt { identifier_name: String, expr: Expr },
+    // Nested blocks stmt -> block -> block .....
+    BlockStmt { blk_stmts: Vec<Stmt> },
 }
 
 #[derive(Debug)]

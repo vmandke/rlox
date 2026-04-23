@@ -12,7 +12,7 @@ pub enum LoxError {
     ParserErrorCannotConsumeExpectedType {
         expected_token_type: String,
     },
-    ParserErrorAdvanceExpectedAToken(String),
+    RuntimeLoxError(String),
     ParserErrorExpressionExpected(String),
     InterpretUnaryMinusUndefined(String),
     InterpretUnaryNotUndefined(String),
@@ -36,7 +36,7 @@ impl fmt::Display for LoxError {
                     "Parser: Expected, but not found, cannot consume {expected_token_type}"
                 )
             }
-            LoxError::ParserErrorAdvanceExpectedAToken(msg) => write!(f, "Parser error: {msg}"),
+            LoxError::RuntimeLoxError(msg) => write!(f, "Parser error: {msg}"),
             LoxError::ParserErrorExpressionExpected(msg) => write!(f, "Parser error: {msg}"),
             LoxError::InterpretUnaryMinusUndefined(msg) => write!(f, "Interpret error: {msg}"),
             LoxError::InterpretUnaryNotUndefined(msg) => write!(f, "Interpret error: {msg}"),
@@ -53,7 +53,7 @@ impl std::error::Error for LoxError {
             LoxError::UsageError(_) => None,
             LoxError::ScanError { .. } => None,
             LoxError::ParserErrorCannotConsumeExpectedType { .. } => None,
-            LoxError::ParserErrorAdvanceExpectedAToken(_) => None,
+            LoxError::RuntimeLoxError(_) => None,
             LoxError::ParserErrorExpressionExpected(_) => None,
             LoxError::InterpretUnaryMinusUndefined(_) => None,
             LoxError::InterpretUnaryNotUndefined(_) => None,

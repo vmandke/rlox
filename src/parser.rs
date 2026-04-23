@@ -117,9 +117,26 @@ use crate::{
     tokenize::{self, BoundaryTokens, Keywords, Literals, Token, TokenType},
 };
 
-pub fn parse(tokens: Vec<tokenize::Token>) -> Result<grammar::Stmt, LoxError> {
+pub fn parse(tokens: Vec<tokenize::Token>) -> Result<Vec<grammar::Stmt>, LoxError> {
     let mut parser = Parser::new(tokens);
-    declaration(&mut parser)
+    program(&mut parser)
+}
+
+fn program(parser: &mut Parser) -> Result<Vec<grammar::Stmt>, LoxError> {
+    let mut stmts = Vec::new();
+    loop {
+        match parser.peek() {
+            None
+            | Some(tokenize::Token {
+                token_type: TokenType::Eof,
+                ..
+            }) => break,
+            _ => {}
+        }
+        let stmt = declaration(parser)?;
+        stmts.push(stmt);
+    }
+    Ok(stmts)
 }
 
 /*
@@ -166,6 +183,11 @@ fn token_to_binary_op(token_type: &TokenType) -> Option<grammar::BinaryOperator>
 }
 
 fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
+    // The book also talks of catching the errors 'LoxErrors' here, so
+    // then the parser synchronizes (basically goes token by token until
+    // valid stmt is found)... Skipping that for now, can add later
+    // TODO(vin) ^
+
     // exprStmt | printStmt ;
     let token_type = match parser.peek() {
         Some(t) => t.token_type.clone(),
@@ -207,6 +229,33 @@ fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
                 identifier_name: name,
                 expr: init_expr,
             })
+        }
+        TokenType::BoundaryTokens(BoundaryTokens::LeftBrace) => {
+            parser.advance();
+            let mut blk_stmts = Vec::new();
+            loop {
+                match parser.peek() {
+                    None
+                    | Some(tokenize::Token {
+                        token_type: TokenType::Eof,
+                        ..
+                    }) => {
+                        return Err(LoxError::ParserErrorStatementExpected(
+                            "Unterminated block: expected '}'".into(),
+                        ));
+                    }
+                    Some(t)
+                        if t.token_type
+                            == TokenType::BoundaryTokens(BoundaryTokens::RightBrace) =>
+                    {
+                        parser.advance();
+                        break;
+                    }
+                    _ => {}
+                }
+                blk_stmts.push(declaration(parser)?);
+            }
+            Ok(grammar::Stmt::BlockStmt { blk_stmts })
         }
         _ => statement(parser),
     }
@@ -453,8 +502,8 @@ mod tests {
     fn test_var_decl() {
         let mut source = Source::new("var a = 5;".to_string());
         let tokens = scan(&mut source).expect("scan failed");
-        let stmt = parse(tokens).expect("parse failed");
-        match stmt {
+        let mut stmts = parse(tokens).expect("parse failed");
+        match stmts.remove(0) {
             grammar::Stmt::VarDeclStmt {
                 identifier_name,
                 expr,
@@ -470,8 +519,8 @@ mod tests {
     fn test_var_decl_no_init() {
         let mut source = Source::new("var b;".to_string());
         let tokens = scan(&mut source).expect("scan failed");
-        let stmt = parse(tokens).expect("parse failed");
-        match stmt {
+        let mut stmts = parse(tokens).expect("parse failed");
+        match stmts.remove(0) {
             grammar::Stmt::VarDeclStmt {
                 identifier_name,
                 expr,

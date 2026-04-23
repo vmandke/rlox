@@ -213,6 +213,14 @@ pub fn evaluate(stmt: &Stmt, env: &mut Environment) -> Result<(), LoxError> {
             env.set(identifier_name.clone(), value);
             Ok(())
         }
+        Stmt::BlockStmt { blk_stmts } => {
+            // FIXME (vin):: This needs a scoped env, for now assume
+            // only global env is available
+            for s in blk_stmts {
+                evaluate(s, env)?;
+            }
+            Ok(())
+        }
     }
 }
 
@@ -274,7 +282,7 @@ pub fn interpret(expr: &Expr, env: &mut Environment) -> Result<InterpretedResult
 mod tests {
     use super::*;
     use crate::{
-        grammar::{BinaryOperator, Expr, Literal, UnaryOperator},
+        grammar::{Expr, Literal, UnaryOperator},
         parser::parse,
         reader::Source,
         tokenize::scan,
@@ -287,8 +295,8 @@ mod tests {
     fn parse_stmt(input: &str) -> Result<Stmt, LoxError> {
         let mut source = Source::new(input.to_string());
         let tokens = scan(&mut source).expect("scan failed");
-        let stmt = parse(tokens).expect("parse failed");
-        Ok(stmt)
+        let mut stmts = parse(tokens).expect("parse failed");
+        Ok(stmts.remove(0))
     }
 
     fn evaluate_stmt(input: &str) -> Result<(), LoxError> {
@@ -304,10 +312,10 @@ mod tests {
         match stmt {
             Stmt::ExprStmt { expr } => interpret(&expr, &mut env),
             Stmt::PrintStmt { expr } => interpret(&expr, &mut env),
-            Stmt::VarDeclStmt {
-                identifier_name,
-                expr,
-            } => interpret(&expr, &mut env),
+            Stmt::VarDeclStmt { expr, .. } => interpret(&expr, &mut env),
+            _ => Err(LoxError::RuntimeLoxError(
+                "Helper only used for non block stmts ".into(),
+            )),
         }
     }
 
@@ -379,5 +387,39 @@ mod tests {
         evaluate(&stmt_c, &mut env).expect("evaluate failed");
         assert_eq!(env.get("b"), InterpretedResult::NumberInt(6));
         assert_eq!(env.get("c"), InterpretedResult::NumberInt(18));
+    }
+
+    #[test]
+    fn test_block_stmt() {
+        let mut env = Environment::new();
+        let stmt = parse_stmt("{ var x = 10; var y = x + 5; }").expect("parse failed");
+        evaluate(&stmt, &mut env).expect("evaluate failed");
+        // FIXME (vin):: Only global env, x, y should not be visible outside
+        assert_eq!(env.get("x"), InterpretedResult::NumberInt(10));
+        assert_eq!(env.get("y"), InterpretedResult::NumberInt(15));
+    }
+
+    #[test]
+    fn test_nested_block_stmt() {
+        let mut env = Environment::new();
+        let stmt = parse_stmt("{ var a = 2; { var b = a * 3; } }").expect("parse failed");
+        evaluate(&stmt, &mut env).expect("evaluate failed");
+        // FIXME (vin):: Only global env
+        // a and b should not be visible ideally
+        assert_eq!(env.get("a"), InterpretedResult::NumberInt(2));
+        assert_eq!(env.get("b"), InterpretedResult::NumberInt(6));
+    }
+
+    #[test]
+    fn test_global_and_block() {
+        let mut env = Environment::new();
+        let global = parse_stmt("var g = 100;").expect("parse failed");
+        evaluate(&global, &mut env).expect("evaluate failed");
+        let block = parse_stmt("{ var local = g + 1; }").expect("parse failed");
+        evaluate(&block, &mut env).expect("evaluate failed");
+        assert_eq!(env.get("g"), InterpretedResult::NumberInt(100));
+        // FIXME (vin):: Only global env
+        // local should not be visible ideally
+        assert_eq!(env.get("local"), InterpretedResult::NumberInt(101));
     }
 }

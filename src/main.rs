@@ -11,9 +11,11 @@ use crate::errors::LoxError;
 fn runner() -> Result<(), LoxError> {
     let mut source: reader::Source = reader::read_source()?;
     let tokens = tokenize::scan(&mut source)?;
-    let ast = parser::parse(tokens)?;
+    let stmts = parser::parse(tokens)?;
     let mut env = state::Environment::new();
-    evaluate::evaluate(&ast, &mut env)?;
+    for stmt in &stmts {
+        evaluate::evaluate(stmt, &mut env)?;
+    }
     Ok(())
 }
 
