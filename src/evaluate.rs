@@ -196,7 +196,7 @@ pub fn binary_divide(
     }
 }
 
-pub fn evaluate(stmt: &Stmt, env: &mut Environment) -> Result<(), LoxError> {
+pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxError> {
     match stmt {
         Stmt::PrintStmt { expr } => {
             let result = interpret(expr, env)?;
@@ -211,15 +211,14 @@ pub fn evaluate(stmt: &Stmt, env: &mut Environment) -> Result<(), LoxError> {
             identifier_name,
             expr,
         } => {
-            let value = interpret(expr, env)?;
-            env.set(identifier_name.clone(), value);
+            let value = interpret(expr, Rc::clone(&env))?;
+            env.borrow_mut().set(identifier_name.clone(), value);
             Ok(())
         }
         Stmt::BlockStmt { blk_stmts } => {
-            // FIXME (vin):: This needs a scoped env, for now assume
-            // only global env is available
+            let new_env = Rc::new(RefCell::new(Environment::new_enclosed(Rc::clone(&env))));
             for s in blk_stmts {
-                evaluate(s, env)?;
+                evaluate(s, Rc::clone(&new_env))?;
             }
             Ok(())
         }
@@ -228,7 +227,7 @@ pub fn evaluate(stmt: &Stmt, env: &mut Environment) -> Result<(), LoxError> {
 
 pub fn interpret(
     expr: &Expr,
-    env: &mut Environment,
+    env: Rc<RefCell<Environment>>,
 ) -> Result<Rc<RefCell<InterpretedResult>>, LoxError> {
     match expr {
         Expr::Literal(lit) => match lit {
@@ -240,13 +239,18 @@ pub fn interpret(
             Literal::Boolean(b) => Ok(Rc::new(RefCell::new(InterpretedResult::Boolean(*b)))),
             Literal::Nil => Ok(Rc::new(RefCell::new(InterpretedResult::Nil))),
         },
-        Expr::Variable { name } => match env.get(name) {
+        Expr::Variable { name } => match env.borrow().get(name) {
             Some(rc) => Ok(rc),
             None => Ok(Rc::new(RefCell::new(InterpretedResult::Nil))),
         },
         Expr::Assign { name, expr } => {
-            let value = interpret(expr, env)?;
-            env.set(name.clone(), Rc::clone(&value));
+            let value = interpret(expr, Rc::clone(&env))?;
+            if !env.borrow_mut().assign(name, Rc::clone(&value)) {
+                return Err(LoxError::RuntimeLoxError(format!(
+                    "Undefined variable '{}'.",
+                    name
+                )));
+            }
             Ok(value)
         }
         Expr::Grouping(grpexpr) => interpret(grpexpr, env),
@@ -263,7 +267,7 @@ pub fn interpret(
             operand1,
             operand2,
         } => {
-            let val1 = interpret(operand1, env)?;
+            let val1 = interpret(operand1, Rc::clone(&env))?;
             let val2 = interpret(operand2, env)?;
             let result = match operator {
                 BinaryOperator::BangEqual => binary_not_equal(&val1.borrow(), &val2.borrow())?,
@@ -296,12 +300,16 @@ mod tests {
         tokenize::scan,
     };
 
-    fn run_program(input: &str, env: &mut Environment) {
+    fn make_env() -> Rc<RefCell<Environment>> {
+        Rc::new(RefCell::new(Environment::new()))
+    }
+
+    fn run_program(input: &str, env: Rc<RefCell<Environment>>) {
         let mut source = Source::new(input.to_string());
         let tokens = scan(&mut source).expect("scan failed");
         let stmts = parse(tokens).expect("parse failed");
         for stmt in &stmts {
-            evaluate(stmt, env).expect("evaluate failed");
+            evaluate(stmt, Rc::clone(&env)).expect("evaluate failed");
         }
     }
 
@@ -318,18 +326,17 @@ mod tests {
 
     fn evaluate_stmt(input: &str) -> Result<(), LoxError> {
         let stmt = parse_stmt(input)?;
-        let mut env = Environment::new();
-        evaluate(&stmt, &mut env)?;
+        evaluate(&stmt, make_env())?;
         Ok(())
     }
 
     fn try_parse_and_interpret(input: &str) -> Result<Rc<RefCell<InterpretedResult>>, LoxError> {
         let stmt = parse_stmt(input)?;
-        let mut env = Environment::new();
+        let env = make_env();
         match stmt {
-            Stmt::ExprStmt { expr } => interpret(&expr, &mut env),
-            Stmt::PrintStmt { expr } => interpret(&expr, &mut env),
-            Stmt::VarDeclStmt { expr, .. } => interpret(&expr, &mut env),
+            Stmt::ExprStmt { expr } => interpret(&expr, env),
+            Stmt::PrintStmt { expr } => interpret(&expr, env),
+            Stmt::VarDeclStmt { expr, .. } => interpret(&expr, env),
             _ => Err(LoxError::RuntimeLoxError(
                 "Helper only used for non block stmts ".into(),
             )),
@@ -342,8 +349,7 @@ mod tests {
             operator: UnaryOperator::Minus,
             operand: Box::new(Expr::Literal(Literal::NumberInt(3))),
         };
-        let mut env = Environment::new();
-        let result = interpret(&expr, &mut env).unwrap();
+        let result = interpret(&expr, make_env()).unwrap();
         assert_eq!(*result.borrow(), InterpretedResult::NumberInt(-3));
     }
 
@@ -397,120 +403,128 @@ mod tests {
 
     #[test]
     fn test_var_lookup_across_stmts() {
-        let mut env = Environment::new();
+        let env = make_env();
         let stmt_b = parse_stmt("var b = 6;").expect("parse failed");
-        evaluate(&stmt_b, &mut env).expect("evaluate failed");
+        evaluate(&stmt_b, Rc::clone(&env)).expect("evaluate failed");
         let stmt_c = parse_stmt("var c = b * 3;").expect("parse failed");
-        evaluate(&stmt_c, &mut env).expect("evaluate failed");
+        evaluate(&stmt_c, Rc::clone(&env)).expect("evaluate failed");
         assert_eq!(
-            *env.get("b").unwrap().borrow(),
+            *env.borrow().get("b").unwrap().borrow(),
             InterpretedResult::NumberInt(6)
         );
         assert_eq!(
-            *env.get("c").unwrap().borrow(),
+            *env.borrow().get("c").unwrap().borrow(),
             InterpretedResult::NumberInt(18)
         );
     }
 
     #[test]
     fn test_block_stmt() {
-        let mut env = Environment::new();
+        let env = make_env();
         let stmt = parse_stmt("{ var x = 10; var y = x + 5; }").expect("parse failed");
-        evaluate(&stmt, &mut env).expect("evaluate failed");
-        // FIXME (vin):: Only global env, x, y should not be visible outside
-        assert_eq!(
-            *env.get("x").unwrap().borrow(),
-            InterpretedResult::NumberInt(10)
-        );
-        assert_eq!(
-            *env.get("y").unwrap().borrow(),
-            InterpretedResult::NumberInt(15)
-        );
+        evaluate(&stmt, Rc::clone(&env)).expect("evaluate failed");
+        // x, y are block-scoped — not visible in outer env
+        assert!(env.borrow().get("x").is_none());
+        assert!(env.borrow().get("y").is_none());
     }
 
     #[test]
     fn test_nested_block_stmt() {
-        let mut env = Environment::new();
+        let env = make_env();
         let stmt = parse_stmt("{ var a = 2; { var b = a * 3; } }").expect("parse failed");
-        evaluate(&stmt, &mut env).expect("evaluate failed");
-        // FIXME (vin):: Only global env
-        // a and b should not be visible ideally
-        assert_eq!(
-            *env.get("a").unwrap().borrow(),
-            InterpretedResult::NumberInt(2)
-        );
-        assert_eq!(
-            *env.get("b").unwrap().borrow(),
-            InterpretedResult::NumberInt(6)
-        );
+        evaluate(&stmt, Rc::clone(&env)).expect("evaluate failed");
+        // a and b are not visible in outer env
+        assert!(env.borrow().get("a").is_none());
+        assert!(env.borrow().get("b").is_none());
     }
 
     #[test]
     fn test_global_and_block() {
-        let mut env = Environment::new();
+        let env = make_env();
         let global = parse_stmt("var g = 100;").expect("parse failed");
-        evaluate(&global, &mut env).expect("evaluate failed");
+        evaluate(&global, Rc::clone(&env)).expect("evaluate failed");
         let block = parse_stmt("{ var local = g + 1; }").expect("parse failed");
-        evaluate(&block, &mut env).expect("evaluate failed");
+        evaluate(&block, Rc::clone(&env)).expect("evaluate failed");
         assert_eq!(
-            *env.get("g").unwrap().borrow(),
+            *env.borrow().get("g").unwrap().borrow(),
             InterpretedResult::NumberInt(100)
         );
-        // FIXME (vin):: Only global env
-        // local should not be visible ideally
-        assert_eq!(
-            *env.get("local").unwrap().borrow(),
-            InterpretedResult::NumberInt(101)
-        );
+        // local is not visible in outer env
+        assert!(env.borrow().get("local").is_none());
     }
 
     #[test]
     fn test_var_decl_then_assign() {
-        let mut env = Environment::new();
+        let env = make_env();
         let decl = parse_stmt("var x = 10;").expect("parse failed");
-        evaluate(&decl, &mut env).expect("evaluate failed");
+        evaluate(&decl, Rc::clone(&env)).expect("evaluate failed");
         assert_eq!(
-            *env.get("x").unwrap().borrow(),
+            *env.borrow().get("x").unwrap().borrow(),
             InterpretedResult::NumberInt(10)
         );
 
         let assign = parse_stmt("x = 99;").expect("parse failed");
-        evaluate(&assign, &mut env).expect("evaluate failed");
+        evaluate(&assign, Rc::clone(&env)).expect("evaluate failed");
         assert_eq!(
-            *env.get("x").unwrap().borrow(),
+            *env.borrow().get("x").unwrap().borrow(),
             InterpretedResult::NumberInt(99)
         );
     }
 
     #[test]
     fn test_assign_uses_rhs_expr() {
-        let mut env = Environment::new();
-        run_program("var a = 4; var b = 3; a = a * b;", &mut env);
+        let env = make_env();
+        run_program("var a = 4; var b = 3; a = a * b;", Rc::clone(&env));
         assert_eq!(
-            *env.get("a").unwrap().borrow(),
+            *env.borrow().get("a").unwrap().borrow(),
             InterpretedResult::NumberInt(12)
         );
         assert_eq!(
-            *env.get("b").unwrap().borrow(),
+            *env.borrow().get("b").unwrap().borrow(),
             InterpretedResult::NumberInt(3)
+        );
+    }
+
+    #[test]
+    fn test_block_assign_updates_outer() {
+        // a = 2 inside block should update outer a
+        let env = make_env();
+        run_program("var a = 1; { a = 2; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("a").unwrap().borrow(),
+            InterpretedResult::NumberInt(2)
+        );
+    }
+
+    #[test]
+    fn test_block_var_decl_shadows_outer() {
+        // var a unchanged in outer
+        let env = make_env();
+        run_program("var a = 1; { var a = 2; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("a").unwrap().borrow(),
+            InterpretedResult::NumberInt(1)
         );
     }
 
     #[test]
     fn test_chained_assign() {
         // a = b = c
-        let mut env = Environment::new();
-        run_program("var a = 0; var b = 0; var c = 7; a = b = c;", &mut env);
+        let env = make_env();
+        run_program(
+            "var a = 0; var b = 0; var c = 7; a = b = c;",
+            Rc::clone(&env),
+        );
         assert_eq!(
-            *env.get("c").unwrap().borrow(),
+            *env.borrow().get("c").unwrap().borrow(),
             InterpretedResult::NumberInt(7)
         );
         assert_eq!(
-            *env.get("b").unwrap().borrow(),
+            *env.borrow().get("b").unwrap().borrow(),
             InterpretedResult::NumberInt(7)
         );
         assert_eq!(
-            *env.get("a").unwrap().borrow(),
+            *env.borrow().get("a").unwrap().borrow(),
             InterpretedResult::NumberInt(7)
         );
     }

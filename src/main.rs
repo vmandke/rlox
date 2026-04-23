@@ -7,14 +7,17 @@ mod state;
 mod tokenize;
 
 use crate::errors::LoxError;
+use crate::state::Environment;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 fn runner() -> Result<(), LoxError> {
     let mut source: reader::Source = reader::read_source()?;
     let tokens = tokenize::scan(&mut source)?;
     let stmts = parser::parse(tokens)?;
-    let mut env = state::Environment::new();
+    let env = Rc::new(RefCell::new(Environment::new()));
     for stmt in &stmts {
-        evaluate::evaluate(stmt, &mut env)?;
+        evaluate::evaluate(stmt, Rc::clone(&env))?;
     }
     Ok(())
 }
