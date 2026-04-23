@@ -44,6 +44,13 @@ pub enum Expr {
         operand1: Box<Expr>,
         operand2: Box<Expr>,
     },
+    Variable {
+        name: String,
+    },
+    Assign {
+        name: String,
+        expr: Box<Expr>,
+    },
 }
 
 #[derive(Debug)]
@@ -51,7 +58,6 @@ pub enum Literal {
     NumberInt(i64),
     NumberFloat(f64),
     String(String),
-    Identifier(String),
     Boolean(bool),
     Nil,
 }
@@ -134,10 +140,11 @@ pub fn print_lisp(expr: &Expr) -> String {
             // ! invokes the format macro; Also create copies as this would be
             // consumed by the display / println
             Literal::String(s) => format!("\"{}\"", s),
-            Literal::Identifier(s) => format!("{}", s),
             Literal::Boolean(b) => b.to_string(),
             Literal::Nil => "nil".to_string(),
         },
+        Expr::Variable { name } => format!("{}", name),
+        Expr::Assign { name, expr } => format!("(= {} {})", name, print_lisp(expr)),
         Expr::Grouping(grpexpr) => format!("(group {})", print_lisp(grpexpr)),
         Expr::Unary { operator, operand } => {
             format!("({} {})", operator.to_str(), print_lisp(operand))
@@ -163,10 +170,11 @@ pub fn pretty_print(expr: &Expr) -> String {
             Literal::NumberInt(n) => format!("{:?}", n),
             Literal::NumberFloat(n) => format!("{:?}", n),
             Literal::String(s) => format!("\"{}\"", s),
-            Literal::Identifier(s) => format!("{}", s),
             Literal::Boolean(b) => b.to_string(),
             Literal::Nil => "nil".to_string(),
         },
+        Expr::Variable { name } => format!("{}", name),
+        Expr::Assign { name, expr } => format!("{} = {}", name, pretty_print(expr)),
         Expr::Grouping(grpexpr) => format!("({})", pretty_print(grpexpr)),
         Expr::Unary { operator, operand } => {
             format!("{}{}", operator.to_str(), pretty_print(operand))

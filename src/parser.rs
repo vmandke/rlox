@@ -113,7 +113,7 @@ impl Parser {
 
 use crate::{
     errors::LoxError,
-    grammar,
+    grammar::{self, Stmt},
     tokenize::{self, BoundaryTokens, Keywords, Literals, Token, TokenType},
 };
 
@@ -287,7 +287,31 @@ fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
 }
 
 fn expression(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
-    equality(parser)
+    assignment(parser)
+}
+
+fn assignment(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let expr = equality(parser)?;
+    let token_type = match parser.peek() {
+        Some(t) => t.token_type.clone(),
+        None => return Ok(expr),
+    };
+    match token_type {
+        TokenType::BoundaryTokens(BoundaryTokens::Equal) => {
+            parser.advance();
+            let value = assignment(parser)?;
+            match expr {
+                grammar::Expr::Variable { name } => Ok(grammar::Expr::Assign {
+                    name,
+                    expr: Box::new(value),
+                }),
+                _ => Err(LoxError::ParserErrorExpressionExpected(
+                    "Assignment rule expected an Var as lhs".into(),
+                )),
+            }
+        }
+        _ => Ok(expr),
+    }
 }
 
 fn equality(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
@@ -416,7 +440,7 @@ fn primary(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
         }
         TokenType::Literals(Literals::Identifier(s)) => {
             parser.advance();
-            Ok(grammar::Expr::Literal(grammar::Literal::Identifier(s)))
+            Ok(grammar::Expr::Variable { name: s })
         }
         TokenType::Keywords(Keywords::True) => {
             parser.advance();
@@ -503,16 +527,10 @@ mod tests {
         let mut source = Source::new("var a = 5;".to_string());
         let tokens = scan(&mut source).expect("scan failed");
         let mut stmts = parse(tokens).expect("parse failed");
-        match stmts.remove(0) {
-            grammar::Stmt::VarDeclStmt {
-                identifier_name,
-                expr,
-            } => {
-                assert_eq!(identifier_name, "a");
-                assert_eq!(print_lisp(&expr), "5");
-            }
-            _ => panic!("expected VarDeclStmt"),
-        }
+        assert_eq!(
+            format!("{:?}", stmts.remove(0)),
+            r#"VarDeclStmt { identifier_name: "a", expr: Literal(NumberInt(5)) }"#
+        );
     }
 
     #[test]
@@ -520,15 +538,50 @@ mod tests {
         let mut source = Source::new("var b;".to_string());
         let tokens = scan(&mut source).expect("scan failed");
         let mut stmts = parse(tokens).expect("parse failed");
-        match stmts.remove(0) {
-            grammar::Stmt::VarDeclStmt {
-                identifier_name,
-                expr,
-            } => {
-                assert_eq!(identifier_name, "b");
-                assert_eq!(print_lisp(&expr), "nil");
-            }
-            _ => panic!("expected VarDeclStmt"),
-        }
+        assert_eq!(
+            format!("{:?}", stmts.remove(0)),
+            r#"VarDeclStmt { identifier_name: "b", expr: Literal(Nil) }"#
+        );
+    }
+
+    #[test]
+    fn test_assignment_expr() {
+        // a = 5  parses to (= a 5)
+        let expr = parse_expr("a = 5");
+        assert_eq!(print_lisp(&expr), "(= a 5)");
+        assert_eq!(pretty_print(&expr), "a = 5");
+    }
+
+    #[test]
+    fn test_assignment_right_associative() {
+        // a = b = 3  parses to (= a (= b 3))
+        let expr = parse_expr("a = b = 3");
+        assert_eq!(print_lisp(&expr), "(= a (= b 3))");
+    }
+
+    #[test]
+    fn test_invalid_assignment_lhs() {
+        let mut source = Source::new("5 = 3;".to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let result = parse(tokens);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_var_decl_then_assign() {
+        let mut source = Source::new("var x = 1; x = 2;".to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let mut stmts = parse(tokens).expect("parse failed");
+        assert_eq!(stmts.len(), 2);
+        let stmt0 = stmts.remove(0);
+        let stmt1 = stmts.remove(0);
+        assert_eq!(
+            format!("{:?}", stmt0),
+            r#"VarDeclStmt { identifier_name: "x", expr: Literal(NumberInt(1)) }"#
+        );
+        assert_eq!(
+            format!("{:?}", stmt1),
+            r#"ExprStmt { expr: Assign { name: "x", expr: Literal(NumberInt(2)) } }"#
+        );
     }
 }

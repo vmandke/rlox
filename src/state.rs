@@ -22,7 +22,7 @@ impl Environment {
     }
 
     pub fn set(&mut self, key: String, value: InterpretedResult) {
-        self.values.entry(key).or_insert(value);
+        self.values.insert(key, value);
     }
 
     pub fn get(&self, key: &str) -> InterpretedResult {

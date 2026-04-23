@@ -230,10 +230,15 @@ pub fn interpret(expr: &Expr, env: &mut Environment) -> Result<InterpretedResult
             Literal::NumberInt(n) => Ok(InterpretedResult::NumberInt(*n)),
             Literal::NumberFloat(n) => Ok(InterpretedResult::NumberFloat(*n)),
             Literal::String(s) => Ok(InterpretedResult::String(s.clone())),
-            Literal::Identifier(s) => Ok(env.get(s)),
             Literal::Boolean(b) => Ok(InterpretedResult::Boolean(*b)),
             Literal::Nil => Ok(InterpretedResult::Nil),
         },
+        Expr::Variable { name } => Ok(env.get(name)),
+        Expr::Assign { name, expr } => {
+            let value = interpret(expr, env)?;
+            env.set(name.clone(), value.clone());
+            Ok(value)
+        }
         Expr::Grouping(grpexpr) => interpret(grpexpr, env),
         Expr::Unary { operator, operand } => match operator {
             UnaryOperator::Minus => unary_minus(interpret(operand, env)?),
@@ -287,6 +292,15 @@ mod tests {
         reader::Source,
         tokenize::scan,
     };
+
+    fn run_program(input: &str, env: &mut Environment) {
+        let mut source = Source::new(input.to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let stmts = parse(tokens).expect("parse failed");
+        for stmt in &stmts {
+            evaluate(stmt, env).expect("evaluate failed");
+        }
+    }
 
     fn parse_and_interpret(input: &str) -> InterpretedResult {
         try_parse_and_interpret(input).expect("interpret failed")
@@ -421,5 +435,35 @@ mod tests {
         // FIXME (vin):: Only global env
         // local should not be visible ideally
         assert_eq!(env.get("local"), InterpretedResult::NumberInt(101));
+    }
+
+    #[test]
+    fn test_var_decl_then_assign() {
+        let mut env = Environment::new();
+        let decl = parse_stmt("var x = 10;").expect("parse failed");
+        evaluate(&decl, &mut env).expect("evaluate failed");
+        assert_eq!(env.get("x"), InterpretedResult::NumberInt(10));
+
+        let assign = parse_stmt("x = 99;").expect("parse failed");
+        evaluate(&assign, &mut env).expect("evaluate failed");
+        assert_eq!(env.get("x"), InterpretedResult::NumberInt(99));
+    }
+
+    #[test]
+    fn test_assign_uses_rhs_expr() {
+        let mut env = Environment::new();
+        run_program("var a = 4; var b = 3; a = a * b;", &mut env);
+        assert_eq!(env.get("a"), InterpretedResult::NumberInt(12));
+        assert_eq!(env.get("b"), InterpretedResult::NumberInt(3));
+    }
+
+    #[test]
+    fn test_chained_assign() {
+        // a = b = c
+        let mut env = Environment::new();
+        run_program("var a = 0; var b = 0; var c = 7; a = b = c;", &mut env);
+        assert_eq!(env.get("c"), InterpretedResult::NumberInt(7));
+        assert_eq!(env.get("b"), InterpretedResult::NumberInt(7));
+        assert_eq!(env.get("a"), InterpretedResult::NumberInt(7));
     }
 }
