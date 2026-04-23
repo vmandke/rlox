@@ -62,7 +62,7 @@ pub enum Literal {
     Nil,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub enum InterpretedResult {
     NumberInt(i64),
     NumberFloat(f64),
