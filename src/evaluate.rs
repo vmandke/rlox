@@ -234,6 +234,17 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
             Ok(())
         }
         Stmt::NoopStmt => Ok(()),
+        Stmt::WhileStmt { condition, body } => {
+            loop {
+                let result = interpret(condition, Rc::clone(&env))?;
+                // TODO(vin): Should while loop get a new env on each iteration?
+                if *result.borrow() != InterpretedResult::Boolean(true) {
+                    break;
+                }
+                evaluate_block_stmt(body, Rc::clone(&env))?;
+            }
+            Ok(())
+        }
         Stmt::IfStmt {
             condition,
             then_branch,
@@ -241,9 +252,9 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
         } => {
             let result = interpret(condition, Rc::clone(&env))?;
             if *result.borrow() == InterpretedResult::Boolean(true) {
-                evaluate_block_stmt(then_branch, env)?;
+                evaluate_block_stmt(then_branch, Rc::clone(&env))?;
             } else if let Some(else_stmts) = else_branch {
-                evaluate_block_stmt(else_stmts, env)?;
+                evaluate_block_stmt(else_stmts, Rc::clone(&env))?;
             }
             Ok(())
         }
@@ -786,6 +797,53 @@ mod tests {
         assert_eq!(
             *env.borrow().get("x").unwrap().borrow(),
             InterpretedResult::NumberInt(1)
+        );
+    }
+
+    #[test]
+    fn test_while_basic_count() {
+        let env = make_env();
+        run_program("var i = 0; while (i < 3) { i = i + 1; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("i").unwrap().borrow(),
+            InterpretedResult::NumberInt(3)
+        );
+    }
+
+    #[test]
+    fn test_while_body_never_runs() {
+        let env = make_env();
+        run_program("var x = 5; while (false) { x = 99; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(5)
+        );
+    }
+
+    #[test]
+    fn test_while_accumulates() {
+        let env = make_env();
+        run_program(
+            "var i = 0; var sum = 0; while (i < 5) { sum = sum + i; i = i + 1; }",
+            Rc::clone(&env),
+        );
+        // 0+1+2+3+4 = 10
+        assert_eq!(
+            *env.borrow().get("sum").unwrap().borrow(),
+            InterpretedResult::NumberInt(10)
+        );
+    }
+
+    #[test]
+    fn test_while_with_if_inside() {
+        let env = make_env();
+        run_program(
+            "var i = 0; var evens = 0; while (i < 6) { if (i == 2 or i == 4) { evens = evens + 1; } i = i + 1; }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("evens").unwrap().borrow(),
+            InterpretedResult::NumberInt(2)
         );
     }
 }

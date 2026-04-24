@@ -43,6 +43,10 @@ pub enum Stmt {
         then_branch: Vec<Stmt>,
         else_branch: Option<Vec<Stmt>>,
     },
+    WhileStmt {
+        condition: Expr,
+        body: Vec<Stmt>,
+    },
     // No-op, do nothing statement
     NoopStmt,
 }

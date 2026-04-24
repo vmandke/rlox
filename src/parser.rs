@@ -114,6 +114,7 @@ impl Parser {
 use crate::{
     errors::LoxError,
     grammar::{self, Stmt},
+    parser,
     tokenize::{self, BoundaryTokens, Keywords, Literals, Token, TokenType},
 };
 
@@ -262,6 +263,9 @@ fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
     }
 }
 
+// Note:: Used claude-code to move out block parsing logic from stmt rule, below
+//     Same block logic is shared between BlockStmt, IfStmt, and WhileStmt
+
 // Parses a block `{ ... }` into Vec<Stmt>, or a single statement into a one-element vec.
 fn parse_branch(parser: &mut Parser) -> Result<Vec<grammar::Stmt>, LoxError> {
     if let Some(t) = parser.peek() {
@@ -334,6 +338,14 @@ fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
                 then_branch,
                 else_branch,
             })
+        }
+        TokenType::Keywords(Keywords::While) => {
+            parser.advance();
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::LeftParen))?;
+            let condition = expression(parser)?;
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::RightParen))?;
+            let body = parse_branch(parser)?;
+            Ok(grammar::Stmt::WhileStmt { condition, body })
         }
         _ => {
             let expr = expression(parser)?;
