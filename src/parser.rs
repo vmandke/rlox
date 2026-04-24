@@ -201,36 +201,7 @@ fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
     };
     match token_type {
         TokenType::Keywords(Keywords::Var) => {
-            // "var" IDENTIFIER ( "=" expression )? ";" ;
-            parser.advance();
-            let name = match parser.peek() {
-                Some(t) => match &t.token_type {
-                    TokenType::Literals(Literals::Identifier(s)) => s.clone(),
-                    _ => {
-                        return Err(LoxError::ParserErrorExpressionExpected(
-                            "Expected identifier after 'var'".into(),
-                        ));
-                    }
-                },
-                None => {
-                    return Err(LoxError::ParserErrorExpressionExpected(
-                        "Expected identifier after 'var'".into(),
-                    ));
-                }
-            };
-            parser.advance();
-            let init_expr = match parser.peek() {
-                Some(t) if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::Equal) => {
-                    parser.advance();
-                    expression(parser)?
-                }
-                _ => grammar::Expr::Literal(grammar::Literal::Nil),
-            };
-            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
-            Ok(grammar::Stmt::VarDeclStmt {
-                identifier_name: name,
-                expr: init_expr,
-            })
+            parse_var_decl(parser)
         }
         TokenType::BoundaryTokens(BoundaryTokens::LeftBrace) => {
             parser.advance();
@@ -263,10 +234,40 @@ fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
     }
 }
 
-// Note:: Used claude-code to move out block parsing logic from stmt rule, below
-//     Same block logic is shared between BlockStmt, IfStmt, and WhileStmt
+fn parse_var_decl(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
+    // "var" IDENTIFIER ( "=" expression )? ";" ;
+    parser.advance();
+    let name = match parser.peek() {
+        Some(t) => match &t.token_type {
+            TokenType::Literals(Literals::Identifier(s)) => s.clone(),
+            _ => {
+                return Err(LoxError::ParserErrorExpressionExpected(
+                    "Expected identifier after 'var'".into(),
+                ));
+            }
+        },
+        None => {
+            return Err(LoxError::ParserErrorExpressionExpected(
+                "Expected identifier after 'var'".into(),
+            ));
+        }
+    };
+    parser.advance();
+    let init_expr = match parser.peek() {
+        Some(t) if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::Equal) => {
+            parser.advance();
+            expression(parser)?
+        }
+        _ => grammar::Expr::Literal(grammar::Literal::Nil),
+    };
+    parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
+    Ok(grammar::Stmt::VarDeclStmt {
+        identifier_name: name,
+        expr: init_expr,
+    })
+}
 
-// Parses a block `{ ... }` into Vec<Stmt>, or a single statement into a one-element vec.
+// Same block logic is shared between BlockStmt, IfStmt, and WhileStmt 
 fn parse_branch(parser: &mut Parser) -> Result<Vec<grammar::Stmt>, LoxError> {
     if let Some(t) = parser.peek() {
         if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::LeftBrace) {
@@ -347,12 +348,69 @@ fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
             let body = parse_branch(parser)?;
             Ok(grammar::Stmt::WhileStmt { condition, body })
         }
+        TokenType::Keywords(Keywords::For) => {
+            parser.advance();
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::LeftParen))?;
+            // optional initializer statement
+            let initializer_stmt = if let Some(token) = parser.peek() {
+                match token.token_type  {
+                    TokenType::BoundaryTokens(BoundaryTokens::Semicolon) => {
+                        // consume ';' and set initializer_stmt to None
+                        parser.advance();
+                        None
+                    },
+                    TokenType::Keywords(Keywords::Var) => Some(Box::new(parse_var_decl(parser)?)),
+                    _ => Some(Box::new(parse_expr_stmt(parser)?)),
+                }
+            } else {
+                None
+            };
+
+            // optional condition expression, followed by ';'
+            let condition_stmt = if let Some(token) = parser.peek() {
+                if token.token_type == TokenType::BoundaryTokens(BoundaryTokens::Semicolon) {
+                    parser.advance();
+                    None
+                } else {
+                    let expr = expression(parser)?;
+                    parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
+                    Some(expr)
+                }
+            } else {
+                None
+            };
+
+            // optional increment expression (no ';', ends at ')')
+            let increment_stmt = if let Some(token) = parser.peek() {
+                if token.token_type == TokenType::BoundaryTokens(BoundaryTokens::RightParen) {
+                    None
+                } else {
+                    let expr = expression(parser)?;
+                    Some(Box::new(grammar::Stmt::ExprStmt { expr }))
+                }
+            } else {
+                None
+            };
+
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::RightParen))?;
+            let body = parse_branch(parser)?;
+            Ok(grammar::Stmt::ForStmt {
+                initializer_stmt,
+                condition: condition_stmt,
+                increment_stmt,
+                body,
+            })
+        }
         _ => {
-            let expr = expression(parser)?;
-            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
-            Ok(grammar::Stmt::ExprStmt { expr })
+            parse_expr_stmt(parser)
         }
     }
+}
+
+fn parse_expr_stmt(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
+    let expr = expression(parser)?;
+    parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
+    Ok(grammar::Stmt::ExprStmt { expr })
 }
 
 fn expression(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {

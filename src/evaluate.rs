@@ -245,6 +245,28 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
             }
             Ok(())
         }
+        Stmt::ForStmt { initializer_stmt, condition, increment_stmt, body } => {
+            if let Some(stmt) = initializer_stmt {
+                // eval initializer in parent env
+                evaluate(stmt, Rc::clone(&env))?;
+            }
+            loop {
+                // condition check, break if condition is false
+                if let Some(cond_expr) = condition {
+                    let result = interpret(cond_expr, Rc::clone(&env))?;
+                    if *result.borrow() != InterpretedResult::Boolean(true) {
+                        break;
+                    }
+                }
+                // eval body in new env enclosed by parent env
+                evaluate_block_stmt(body, Rc::clone(&env))?;
+                // eval increment in parent env after body
+                if let Some(incr_stmt) = increment_stmt {
+                    evaluate(incr_stmt, Rc::clone(&env))?;
+                }
+            }
+            Ok(())
+        }
         Stmt::IfStmt {
             condition,
             then_branch,
@@ -831,6 +853,20 @@ mod tests {
         assert_eq!(
             *env.borrow().get("sum").unwrap().borrow(),
             InterpretedResult::NumberInt(10)
+        );
+    }
+
+    #[test]
+    fn test_for_fibonacci() {
+        let env = make_env();
+        run_program(
+            "var a = 0; var temp; for (var b = 1; a < 10000; b = temp + b) { temp = a; a = b; }",
+            Rc::clone(&env),
+        );
+        // Fibonacci sequence stops when a reaches 10946 (first value >= 10000)
+        assert_eq!(
+            *env.borrow().get("a").unwrap().borrow(),
+            InterpretedResult::NumberInt(10946)
         );
     }
 

@@ -47,6 +47,13 @@ pub enum Stmt {
         condition: Expr,
         body: Vec<Stmt>,
     },
+    ForStmt {
+        // In a for loop, any of these can be omitted
+        initializer_stmt: Option<Box<Stmt>>,
+        condition: Option<Expr>,
+        increment_stmt: Option<Box<Stmt>>,
+        body: Vec<Stmt>,
+    },
     // No-op, do nothing statement
     NoopStmt,
 }
