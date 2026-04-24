@@ -1,0 +1,31 @@
+// Concentric diamonds — Manhattan distance from center
+// |dr|*2 + |dc| compensates for character aspect ratio
+
+fun absVal(n) {
+  if (n < 0) { return 0 - n; }
+  return n;
+}
+
+var rows = 24;
+var cols = 62;
+var cr   = 11;
+var cc   = 30;
+
+var r = 0;
+while (r < rows) {
+  var line = "";
+  var c    = 0;
+  while (c < cols) {
+    var dist = (absVal(r - cr) * 2) + absVal(c - cc);
+    var shell = (dist - ((((dist / 6)) * 6)));   // dist mod 6
+    if (shell == 0)      { line = line + "#"; }
+    else if (shell == 1) { line = line + "+"; }
+    else if (shell == 2) { line = line + "o"; }
+    else if (shell == 3) { line = line + "."; }
+    else if (shell == 4) { line = line + ":"; }
+    else                 { line = line + " "; }
+    c = c + 1;
+  }
+  print line;
+  r = r + 1;
+}

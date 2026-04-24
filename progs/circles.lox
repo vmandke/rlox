@@ -1,0 +1,34 @@
+// Concentric circles — integer distance from center via Newton sqrt
+// Character cells are ~2:1, so scale row-distance by 2 to compensate
+
+fun isqrt(n) {
+  if (n <= 0) { return 0; }
+  var x = n;
+  var y = ((x + 1) / 2);
+  while (y < x) { x = y; y = ((x + (n / x)) / 2); }
+  return x;
+}
+
+var rows  = 24;
+var cols  = 62;
+var cr    = 12;   // center row
+var cc    = 31;   // center col
+var chars = " .:+o0#";
+
+var r = 0;
+while (r < rows) {
+  var line = "";
+  var c    = 0;
+  while (c < cols) {
+    var dr   = (r - cr) * 2;          // compensate aspect ratio
+    var dc   = (c - cc);
+    var dist = isqrt((dr * dr) + (dc * dc));
+    var ring = (dist - ((((dist / 3)) * 3)));   // dist mod 3
+    if (ring == 0) { line = line + "#"; }
+    else if (ring == 1) { line = line + "."; }
+    else                { line = line + " "; }
+    c = c + 1;
+  }
+  print line;
+  r = r + 1;
+}

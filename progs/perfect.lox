@@ -1,0 +1,28 @@
+// Perfect numbers up to 500: sum of proper divisors equals the number
+fun isDivisible(n, d) {
+  var r = n - (((n / d)) * d);
+  return r == 0;
+}
+
+fun sumDivisors(n) {
+  var s = 1;
+  var d = 2;
+  while ((d * d) <= n) {
+    if (isDivisible(n, d)) {
+      s = s + d;
+      if (d != (n / d)) {
+        s = s + (n / d);
+      }
+    }
+    d = d + 1;
+  }
+  return s;
+}
+
+var n = 2;
+while (n <= 500) {
+  if (sumDivisors(n) == n) {
+    print n;   // 6, 28, 496
+  }
+  n = n + 1;
+}

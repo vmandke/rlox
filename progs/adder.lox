@@ -1,0 +1,14 @@
+// Higher-order: factory that returns an adder closure
+fun makeAdder(n) {
+  fun adder(x) {
+    return x + n;
+  }
+  return adder;
+}
+
+var add5  = makeAdder(5);
+var add10 = makeAdder(10);
+
+print add5(3);   // 8
+print add10(3);  // 13
+print add5(add10(1));  // 16

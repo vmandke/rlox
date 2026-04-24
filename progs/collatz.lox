@@ -1,0 +1,22 @@
+// Collatz sequence starting from 27
+fun isEven(n) {
+  return (n - ((n / 2) * 2)) == 0;
+}
+
+fun collatz(n) {
+  var steps = 0;
+  while (n != 1) {
+    if (isEven(n)) {
+      n = n / 2;
+    } else {
+      n = (3 * n) + 1;
+    }
+    steps = steps + 1;
+  }
+  return steps;
+}
+
+print collatz(27);   // 111 steps
+print collatz(6);    // 8 steps
+print collatz(1);    // 0 steps
+print collatz(16);   // 4 steps

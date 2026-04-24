@@ -1,0 +1,12 @@
+// GCD via subtraction-based Euclidean
+fun gcd(a, b) {
+  while (a != b) {
+    if (a > b) { a = a - b; }
+    else { b = b - a; }
+  }
+  return a;
+}
+
+print gcd(48, 18);   // 6
+print gcd(100, 75);  // 25
+print gcd(12, 8);    // 4

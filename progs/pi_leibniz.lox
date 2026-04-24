@@ -1,0 +1,21 @@
+// Pi approximation via Leibniz series: pi/4 = 1 - 1/3 + 1/5 - ...
+// Fixed-point scale=1000000.  Prints pi * 1000000 after each 250 terms.
+var scale = 1000000;
+var sum   = 0;
+var k     = 0;
+var limit = 2000;
+
+while (k < limit) {
+  var denom = (2 * k) + 1;
+  var term  = (scale / denom);
+  var kmod2 = (k - (((k / 2)) * 2));
+  if (kmod2 == 0) { sum = sum + term; }
+  else            { sum = sum - term; }
+
+  var checkpoint = (k - (((k / 250)) * 250));
+  if (checkpoint == 249) {
+    print (sum * 4);   // converges toward 3141592
+  }
+  k = k + 1;
+}
+print (sum * 4);       // final value

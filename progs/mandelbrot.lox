@@ -1,0 +1,52 @@
+// Mandelbrot set — fixed-point arithmetic, scale=1000 (1.0 = 1000)
+// Grid 60x24, x in [-2.0, 1.0], y in [-1.2, 1.2]
+// z_{n+1} = z_n^2 + c,  escape when |z|^2 > 4
+
+var scale   = 1000;
+var maxIter = 48;
+var cols    = 60;
+var rows    = 24;
+
+// x: -2000..1000 step 50  (3000 / 60 = 50)
+// y: -1200..1200 step 100 (2400 / 24 = 100)
+
+var row = 0;
+while (row < rows) {
+  var ci   = (0 - 1200) + (row * 100);
+  var line = "";
+  var col  = 0;
+  while (col < cols) {
+    var cr      = (0 - 2000) + (col * 50);
+    var zr      = 0;
+    var zi      = 0;
+    var iter    = 0;
+    var escaped = false;
+
+    while ((iter < maxIter) and (escaped == false)) {
+      var zr2 = ((zr * zr) / scale);
+      var zi2 = ((zi * zi) / scale);
+      if ((zr2 + zi2) > (4 * scale)) {
+        escaped = true;
+      } else {
+        var nzr = ((zr2 - zi2) + cr);
+        var nzi = ((((2 * zr) * zi) / scale) + ci);
+        zr   = nzr;
+        zi   = nzi;
+        iter = iter + 1;
+      }
+    }
+
+    if (escaped) {
+      if (iter < 4)       { line = line + " "; }
+      else if (iter < 8)  { line = line + "."; }
+      else if (iter < 16) { line = line + "o"; }
+      else                { line = line + "+"; }
+    } else {
+      line = line + "#";
+    }
+
+    col = col + 1;
+  }
+  print line;
+  row = row + 1;
+}

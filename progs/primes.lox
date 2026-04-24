@@ -1,0 +1,21 @@
+// Primes up to 50 — divisibility via repeated subtraction
+fun isDivisible(n, d) {
+  while (n > 0) { n = n - d; }
+  return n == 0;
+}
+
+fun isPrime(n) {
+  if (n < 2) { return false; }
+  var i = 2;
+  while (i * i <= n) {
+    if (isDivisible(n, i)) { return false; }
+    i = i + 1;
+  }
+  return true;
+}
+
+var n = 2;
+while (n <= 50) {
+  if (isPrime(n)) { print n; }
+  n = n + 1;
+}

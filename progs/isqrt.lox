@@ -1,0 +1,27 @@
+// Integer square root via Newton's method: x_{n+1} = (x + N/x) / 2
+fun isqrt(n) {
+  if (n < 0) { return 0 - 1; }
+  if (n == 0) { return 0; }
+  var x = n;
+  var y = ((x + 1) / 2);
+  while (y < x) {
+    x = y;
+    y = ((x + (n / x)) / 2);
+  }
+  return x;
+}
+
+// Verify: print isqrt(n) and n/isqrt(n) to show floor bracket
+var n = 0;
+while (n <= 20) {
+  print isqrt(n * n);        // exact squares: 0..20
+  n = n + 1;
+}
+
+print isqrt(2);    // 1
+print isqrt(3);    // 1
+print isqrt(8);    // 2
+print isqrt(10);   // 3
+print isqrt(99);   // 9
+print isqrt(100);  // 10
+print isqrt(1000); // 31

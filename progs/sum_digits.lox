@@ -1,0 +1,27 @@
+// Sum of digits and digit count using modulo + division
+fun sumDigits(n) {
+  var s = 0;
+  while (n > 0) {
+    s = s + (n - ((n / 10) * 10));
+    n = n / 10;
+  }
+  return s;
+}
+
+fun countDigits(n) {
+  var c = 0;
+  while (n > 0) {
+    n = n / 10;
+    c = c + 1;
+  }
+  return c;
+}
+
+print sumDigits(12345);   // 15
+print sumDigits(9999);    // 36
+print sumDigits(100);     // 1
+print sumDigits(7);       // 7
+
+print countDigits(12345); // 5
+print countDigits(999);   // 3
+print countDigits(1);     // 1

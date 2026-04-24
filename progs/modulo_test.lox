@@ -1,0 +1,8 @@
+// Modulo via n - ((n/d)*d) — extra brackets to force correct precedence
+print 10 - ((10 / 3) * 3);   // expect 1
+print 9  - ((9  / 3) * 3);   // expect 0
+print 7  - ((7  / 2) * 2);   // expect 1
+print 10 - ((10 / 5) * 5);   // expect 0
+print 11 - ((11 / 4) * 4);   // expect 3
+print 6  - ((6  / 6) * 6);   // expect 0
+print 13 - ((13 / 7) * 7);   // expect 6

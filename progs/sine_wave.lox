@@ -1,0 +1,43 @@
+// ASCII sine wave — parabolic sine approximation, 2 full cycles
+// sin_approx(x): period=30, amplitude=10 rows, using 4p(T/2-p)/(T/2)^2
+
+fun absVal(n) {
+  if (n < 0) { return 0 - n; }
+  return n;
+}
+
+// Returns row offset in range [-10, 10] for column x
+fun sineOffset(x) {
+  var period = 30;
+  var p      = x - ((((x / period)) * period));   // x mod 30
+  var neg    = false;
+  if (p >= 15) { p = p - 15; neg = true; }
+  // parabola peaking at 1.0 when p=7: (4*p*(15-p)) / 225
+  var offset = (((40 * p) * (15 - p)) / 225);
+  if (neg) { return 0 - offset; }
+  return offset;
+}
+
+var rows   = 23;
+var cols   = 60;
+var midRow = 11;
+
+var r = 0;
+while (r < rows) {
+  var line = "";
+  var c    = 0;
+  while (c < cols) {
+    var waveRow = midRow - sineOffset(c);
+    if (waveRow == r) {
+      if (sineOffset(c) == 0) { line = line + "-"; }
+      else                    { line = line + "*"; }
+    } else if ((r == midRow) and (sineOffset(c) != 0)) {
+      line = line + "-";
+    } else {
+      line = line + " ";
+    }
+    c = c + 1;
+  }
+  print line;
+  r = r + 1;
+}

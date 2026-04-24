@@ -1,0 +1,11 @@
+// Recursive factorial (no underscores — tokenizer doesn't support them)
+fun factrec(n) {
+  if (n <= 1) { return 1; }
+  return n * factrec(n - 1);
+}
+
+var i = 0;
+while (i <= 10) {
+  print factrec(i);
+  i = i + 1;
+}

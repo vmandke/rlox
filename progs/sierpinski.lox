@@ -1,0 +1,47 @@
+// Sierpinski triangle via Rule 90: new[i] = left XOR right
+// Same integer bit-encoding as rule30.lox
+
+fun pow2(n) {
+  var r = 1;
+  var i = 0;
+  while (i < n) { r = r * 2; i = i + 1; }
+  return r;
+}
+
+fun getBit(row, i) {
+  if ((i < 0) or (i > 30)) { return 0; }
+  var p = pow2(i);
+  return (row / p) - ((((row / p)) / 2) * 2);
+}
+
+fun nextRow(row) {
+  var next = 0;
+  var i = 0;
+  while (i <= 30) {
+    var L  = getBit(row, i - 1);
+    var R  = getBit(row, i + 1);
+    var xr = L + R - (2 * (L * R));   // single-bit XOR
+    if (xr == 1) { next = next + pow2(i); }
+    i = i + 1;
+  }
+  return next;
+}
+
+fun printRow(row) {
+  var line = "";
+  var i = 30;
+  while (i >= 0) {
+    if (getBit(row, i) == 1) { line = line + "#"; }
+    else                     { line = line + " "; }
+    i = i - 1;
+  }
+  print line;
+}
+
+var row = 32768;   // 2^15 — single center cell
+var gen = 0;
+while (gen < 16) {
+  printRow(row);
+  row = nextRow(row);
+  gen = gen + 1;
+}

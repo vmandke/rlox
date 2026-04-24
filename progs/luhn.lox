@@ -1,0 +1,26 @@
+// Luhn algorithm — credit card checksum validation
+// Process digits right-to-left: odd positions sum as-is,
+// even positions double (subtract 9 if > 9)
+fun luhn(n) {
+  var sum      = 0;
+  var position = 1;
+  while (n > 0) {
+    var digit = (n - (((n / 10)) * 10));
+    n = n / 10;
+    if ((position - ((( position / 2)) * 2)) == 0) {
+      var doubled = digit * 2;
+      if (doubled > 9) { doubled = doubled - 9; }
+      sum = sum + doubled;
+    } else {
+      sum = sum + digit;
+    }
+    position = position + 1;
+  }
+  return ((sum - (((sum / 10)) * 10)) == 0);
+}
+
+print luhn(4532015112830366);   // true  — valid Visa test number
+print luhn(4532015112830367);   // false — off by one
+print luhn(79927398713);        // true  — Wikipedia example
+print luhn(79927398714);        // false
+print luhn(1234567890123456);   // false — random

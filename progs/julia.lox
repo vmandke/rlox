@@ -1,0 +1,50 @@
+// Julia set — fixed-point scale=1000, c = (-0.7, 0.27i)
+// col → real axis x ∈ [-1.5, 1.5]
+// row → imaginary axis y ∈ [-1.0, 1.0]
+
+var scale   = 1000;
+var maxIter = 64;
+var cols    = 60;
+var rows    = 24;
+var cfixR   = 0 - 700;
+var cfixI   = 270;
+
+var row = 0;
+while (row < rows) {
+  var pixI = (0 - 1000) + (row * 83);   // imag: -1.0 .. +1.0
+  var line = "";
+  var col  = 0;
+  while (col < cols) {
+    var pixR = (0 - 1500) + (col * 50); // real: -1.5 .. +1.5
+    var zr   = pixR;
+    var zi   = pixI;
+    var iter = 0;
+    var escaped = false;
+
+    while ((iter < maxIter) and (escaped == false)) {
+      var zr2 = ((zr * zr) / scale);
+      var zi2 = ((zi * zi) / scale);
+      if ((zr2 + zi2) > (4 * scale)) {
+        escaped = true;
+      } else {
+        var nzr = ((zr2 - zi2) + cfixR);
+        var nzi = ((((2 * zr) * zi) / scale) + cfixI);
+        zr   = nzr;
+        zi   = nzi;
+        iter = iter + 1;
+      }
+    }
+
+    if (escaped == false) {
+      line = line + "#";
+    } else {
+      if (iter < 3)       { line = line + " "; }
+      else if (iter < 8)  { line = line + "."; }
+      else if (iter < 20) { line = line + "o"; }
+      else                { line = line + "+"; }
+    }
+    col = col + 1;
+  }
+  print line;
+  row = row + 1;
+}
