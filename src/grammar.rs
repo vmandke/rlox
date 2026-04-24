@@ -86,6 +86,11 @@ pub enum Expr {
         name: String,
         expr: Box<Expr>,
     },
+    // invoke a function with arguments
+    InvokeCall {
+        callee: Box<Expr>,
+        arguments: Vec<Expr>,
+    },
 }
 
 #[derive(Debug)]
@@ -202,6 +207,14 @@ pub fn print_lisp(expr: &Expr) -> String {
                 print_lisp(operand2)
             )
         }
+        Expr::InvokeCall { callee, arguments } => {
+            let args_str = arguments
+                .iter()
+                .map(|arg| print_lisp(arg))
+                .collect::<Vec<_>>()
+                .join(" ");
+            format!("({} {})", print_lisp(callee), args_str)
+        }
     }
 }
 
@@ -239,6 +252,14 @@ pub fn pretty_print(expr: &Expr) -> String {
                 operator.to_str(),
                 pretty_print(operand2)
             )
+        }
+        Expr::InvokeCall { callee, arguments } => {
+            let args_str = arguments
+                .iter()
+                .map(|arg| pretty_print(arg))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}({})", pretty_print(callee), args_str)
         }
     }
 }

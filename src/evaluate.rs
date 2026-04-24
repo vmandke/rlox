@@ -245,7 +245,12 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
             }
             Ok(())
         }
-        Stmt::ForStmt { initializer_stmt, condition, increment_stmt, body } => {
+        Stmt::ForStmt {
+            initializer_stmt,
+            condition,
+            increment_stmt,
+            body,
+        } => {
             if let Some(stmt) = initializer_stmt {
                 // eval initializer in parent env
                 evaluate(stmt, Rc::clone(&env))?;
@@ -362,6 +367,13 @@ pub fn interpret(
                 BinaryOperator::Divide => binary_divide(&val1.borrow(), &val2.borrow())?,
             };
             Ok(Rc::new(RefCell::new(result)))
+        }
+        Expr::InvokeCall {
+            callee: _,
+            arguments: _,
+        } => {
+            // TODO (vin): Implement function calls
+            todo!()
         }
     }
 }

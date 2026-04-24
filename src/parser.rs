@@ -200,9 +200,7 @@ fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
         }
     };
     match token_type {
-        TokenType::Keywords(Keywords::Var) => {
-            parse_var_decl(parser)
-        }
+        TokenType::Keywords(Keywords::Var) => parse_var_decl(parser),
         TokenType::BoundaryTokens(BoundaryTokens::LeftBrace) => {
             parser.advance();
             let mut blk_stmts = Vec::new();
@@ -267,7 +265,7 @@ fn parse_var_decl(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
     })
 }
 
-// Same block logic is shared between BlockStmt, IfStmt, and WhileStmt 
+// Same block logic is shared between BlockStmt, IfStmt, and WhileStmt
 fn parse_branch(parser: &mut Parser) -> Result<Vec<grammar::Stmt>, LoxError> {
     if let Some(t) = parser.peek() {
         if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::LeftBrace) {
@@ -353,12 +351,12 @@ fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
             parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::LeftParen))?;
             // optional initializer statement
             let initializer_stmt = if let Some(token) = parser.peek() {
-                match token.token_type  {
+                match token.token_type {
                     TokenType::BoundaryTokens(BoundaryTokens::Semicolon) => {
                         // consume ';' and set initializer_stmt to None
                         parser.advance();
                         None
-                    },
+                    }
                     TokenType::Keywords(Keywords::Var) => Some(Box::new(parse_var_decl(parser)?)),
                     _ => Some(Box::new(parse_expr_stmt(parser)?)),
                 }
@@ -401,9 +399,7 @@ fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
                 body,
             })
         }
-        _ => {
-            parse_expr_stmt(parser)
-        }
+        _ => parse_expr_stmt(parser),
     }
 }
 
@@ -562,12 +558,12 @@ fn factor(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
 fn unary(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
     let token_type = match parser.peek() {
         Some(t) => t.token_type.clone(),
-        None => return primary(parser),
+        None => return call_invoke(parser),
     };
     let op = match token_type {
         TokenType::BoundaryTokens(BoundaryTokens::Bang) => grammar::UnaryOperator::Not,
         TokenType::BoundaryTokens(BoundaryTokens::Minus) => grammar::UnaryOperator::Minus,
-        _ => return primary(parser),
+        _ => return call_invoke(parser),
     };
     parser.advance();
     let operand = unary(parser)?;
@@ -575,6 +571,47 @@ fn unary(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
         operator: op,
         operand: Box::new(operand),
     })
+}
+
+fn call_invoke(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let mut expr = primary(parser)?;
+    loop {
+        // Try and match (a,...)(a....).... for invocations
+        match parser.peek() {
+            Some(t) if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::LeftParen) => {
+                // Collect arguments
+                parser.advance();
+                let mut arguments = Vec::new();
+                loop {
+                    // while not ')', parse arguments (which are expressions)
+                    if let Some(t) = parser.peek() {
+                        if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::RightParen) {
+                            break;
+                        }
+                    }
+                    let arg = expression(parser)?;
+                    arguments.push(arg);
+                    // continue in loop if peek for comma else break
+                    match parser.peek() {
+                        Some(t)
+                            if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::Comma) =>
+                        {
+                            parser.advance();
+                        }
+                        _ => break,
+                    }
+                }
+                // consume the ')'
+                parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::RightParen))?;
+                expr = grammar::Expr::InvokeCall {
+                    callee: Box::new(expr),
+                    arguments,
+                };
+            }
+            _ => break,
+        }
+    }
+    Ok(expr)
 }
 
 fn primary(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
@@ -744,6 +781,27 @@ mod tests {
             format!("{:?}", stmt1),
             r#"ExprStmt { expr: Assign { name: "x", expr: Literal(NumberInt(2)) } }"#
         );
+    }
+
+    #[test]
+    fn test_call_no_args() {
+        // foo()  =>  foo()
+        let expr = parse_expr("foo()");
+        assert_eq!(pretty_print(&expr), "foo()");
+    }
+
+    #[test]
+    fn test_call_with_args() {
+        // foo(1, 2)  =>  foo(1, 2)
+        let expr = parse_expr("foo(1, 2)");
+        assert_eq!(pretty_print(&expr), "foo(1, 2)");
+    }
+
+    #[test]
+    fn test_chained_call() {
+        // foo(1)(2)  =>  foo(1)(2)
+        let expr = parse_expr("foo(1)(2)");
+        assert_eq!(pretty_print(&expr), "foo(1)(2)");
     }
 
     #[test]
