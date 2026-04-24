@@ -20,7 +20,10 @@ I thought it would describe the entire language.
 However assignments, variables, control flow etc are not described here, and are handled later chapters.
 */
 
+use crate::state::Environment;
+use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Stmt {
@@ -58,7 +61,7 @@ pub enum Stmt {
         name: String,
         // Per the book, Lox has no type annotations
         parameters: Vec<String>,
-        body: Vec<Stmt>,
+        body: Rc<Vec<Stmt>>,
     },
     // No-op, do nothing statement
     NoopStmt,
@@ -108,13 +111,19 @@ pub enum Literal {
     Nil,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum InterpretedResult {
     NumberInt(i64),
     NumberFloat(f64),
     String(String),
     Boolean(bool),
     Nil,
+    Function {
+        name: String,
+        parameters: Vec<String>,
+        body: Rc<Vec<Stmt>>,
+        environment: Rc<RefCell<Environment>>,
+    },
 }
 
 impl fmt::Display for InterpretedResult {
@@ -125,6 +134,25 @@ impl fmt::Display for InterpretedResult {
             InterpretedResult::String(s) => write!(f, "{}", s),
             InterpretedResult::Boolean(b) => write!(f, "{}", b),
             InterpretedResult::Nil => write!(f, "nil"),
+            InterpretedResult::Function { name, .. } => write!(f, "<fn {}>", name),
+        }
+    }
+}
+
+impl PartialEq for InterpretedResult {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (InterpretedResult::NumberInt(a), InterpretedResult::NumberInt(b)) => a == b,
+            (InterpretedResult::NumberFloat(a), InterpretedResult::NumberFloat(b)) => a == b,
+            (InterpretedResult::String(a), InterpretedResult::String(b)) => a == b,
+            (InterpretedResult::Boolean(a), InterpretedResult::Boolean(b)) => a == b,
+            (InterpretedResult::Nil, InterpretedResult::Nil) => true,
+            // functions are equal only if they are the same object
+            (
+                InterpretedResult::Function { name: a, .. },
+                InterpretedResult::Function { name: b, .. },
+            ) => a == b,
+            _ => false,
         }
     }
 }

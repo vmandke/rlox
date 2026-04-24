@@ -290,8 +290,17 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
             parameters,
             body,
         } => {
-            // TODO(vin): Implement function declarations
-            todo!()
+            // Function declarations are not evaluated
+            let function = InterpretedResult::Function {
+                name: name.clone(),
+                parameters: parameters.clone(),
+                body: Rc::clone(body),
+                environment: Rc::clone(&env),
+            };
+            // assign function to name in env
+            env.borrow_mut()
+                .set(name.clone(), Rc::new(RefCell::new(function)));
+            Ok(())
         }
     }
 }
@@ -376,12 +385,41 @@ pub fn interpret(
             };
             Ok(Rc::new(RefCell::new(result)))
         }
-        Expr::InvokeCall {
-            callee: _,
-            arguments: _,
-        } => {
-            // TODO (vin): Implement function calls
-            todo!()
+        Expr::InvokeCall { callee, arguments } => {
+            // interpret callee in current env
+            let callee_val = interpret(callee, Rc::clone(&env))?;
+            match &*callee_val.borrow() {
+                InterpretedResult::Function {
+                    name: _,
+                    parameters,
+                    body,
+                    environment: func_def_env,
+                } => {
+                    // arity check arguments against parameters
+                    if arguments.len() != parameters.len() {
+                        return Err(LoxError::RuntimeLoxError(format!(
+                            "Expected {} arguments but got {}.",
+                            parameters.len(),
+                            arguments.len()
+                        )));
+                    }
+                    // Create new env enclosed by function declaration env
+                    // As this is closure, the function body should be able to access variables in the env where the function was declared
+                    let new_env = Rc::new(RefCell::new(Environment::new_enclosed(Rc::clone(
+                        &func_def_env,
+                    ))));
+                    // Evaluate arguments in current env and assign to parameter names in new env
+                    for (param_name, arg_expr) in parameters.iter().zip(arguments.iter()) {
+                        let arg_val = interpret(arg_expr, Rc::clone(&env))?;
+                        new_env.borrow_mut().set(param_name.clone(), arg_val);
+                    }
+                    // Eval function body in new env
+                    evaluate_block_stmt(&body, Rc::clone(&new_env))?;
+                    // TODO (vin): Return Stmts are not supported as yet
+                    Ok(Rc::new(RefCell::new(InterpretedResult::Nil)))
+                }
+                _ => Err(LoxError::RuntimeLoxError("Can only call functions.".into())),
+            }
         }
     }
 }
@@ -888,6 +926,65 @@ mod tests {
             *env.borrow().get("a").unwrap().borrow(),
             InterpretedResult::NumberInt(10946)
         );
+    }
+
+    #[test]
+    fn test_function_decl_stored_in_env() {
+        // fun f() {} declares f in env as a Function value
+        let env = make_env();
+        run_program("fun f() {}", Rc::clone(&env));
+        assert!(matches!(
+            *env.borrow().get("f").unwrap().borrow(),
+            InterpretedResult::Function { .. }
+        ));
+    }
+
+    #[test]
+    fn test_function_call_no_args_side_effect() {
+        // fun set() { x = 42; } set();
+        let env = make_env();
+        run_program("var x = 0; fun set() { x = 42; } set();", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(42)
+        );
+    }
+
+    #[test]
+    fn test_function_call_with_args_side_effect() {
+        // fun add(a, b) { x = a + b; } add(3, 4);
+        let env = make_env();
+        run_program(
+            "var x = 0; fun add(a, b) { x = a + b; } add(3, 4);",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(7)
+        );
+    }
+
+    #[test]
+    fn test_function_call_wrong_arity_errors() {
+        // fun f(a) {} f(1, 2); should error
+        let env = make_env();
+        let mut source = Source::new("fun f(a) {} f(1, 2);".to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let stmts = parse(tokens).expect("parse failed");
+        evaluate(&stmts[0], Rc::clone(&env)).expect("decl ok");
+        let result = evaluate(&stmts[1], Rc::clone(&env));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_function_call_not_callable_errors() {
+        // 5(); should error
+        let env = make_env();
+        let mut source = Source::new("5();".to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let stmts = parse(tokens).expect("parse failed");
+        let result = evaluate(&stmts[0], Rc::clone(&env));
+        assert!(result.is_err());
     }
 
     #[test]

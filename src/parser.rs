@@ -111,6 +111,8 @@ impl Parser {
     }
 }
 
+use std::rc::Rc;
+
 use crate::{
     errors::LoxError,
     grammar::{self, Stmt},
@@ -287,7 +289,7 @@ fn parse_function_decl(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
     // consume ')'
     parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::RightParen))?;
     // parse body (block stmt)
-    let body = parse_branch(parser)?;
+    let body = Rc::new(parse_branch(parser)?);
     Ok(grammar::Stmt::FunctionDeclStmt {
         name,
         parameters,
