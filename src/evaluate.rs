@@ -196,6 +196,17 @@ pub fn binary_divide(
     }
 }
 
+pub fn evaluate_block_stmt(
+    stmts: &Vec<Stmt>,
+    env: Rc<RefCell<Environment>>,
+) -> Result<(), LoxError> {
+    let new_env = Rc::new(RefCell::new(Environment::new_enclosed(Rc::clone(&env))));
+    for s in stmts {
+        evaluate(s, Rc::clone(&new_env))?;
+    }
+    Ok(())
+}
+
 pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxError> {
     match stmt {
         Stmt::PrintStmt { expr } => {
@@ -219,6 +230,20 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
             let new_env = Rc::new(RefCell::new(Environment::new_enclosed(Rc::clone(&env))));
             for s in blk_stmts {
                 evaluate(s, Rc::clone(&new_env))?;
+            }
+            Ok(())
+        }
+        Stmt::NoopStmt => Ok(()),
+        Stmt::IfStmt {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            let result = interpret(condition, Rc::clone(&env))?;
+            if *result.borrow() == InterpretedResult::Boolean(true) {
+                evaluate_block_stmt(then_branch, env)?;
+            } else if let Some(else_stmts) = else_branch {
+                evaluate_block_stmt(else_stmts, env)?;
             }
             Ok(())
         }
@@ -526,6 +551,85 @@ mod tests {
         assert_eq!(
             *env.borrow().get("a").unwrap().borrow(),
             InterpretedResult::NumberInt(7)
+        );
+    }
+
+    #[test]
+    fn test_if_true_branch_runs() {
+        let env = make_env();
+        run_program("var x = 0; if (true) { x = 1; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(1)
+        );
+    }
+
+    #[test]
+    fn test_if_false_branch_skipped() {
+        let env = make_env();
+        run_program("var x = 0; if (false) { x = 1; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(0)
+        );
+    }
+
+    #[test]
+    fn test_if_else_true() {
+        let env = make_env();
+        run_program(
+            "var x = 0; if (true) { x = 1; } else { x = 2; }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(1)
+        );
+    }
+
+    #[test]
+    fn test_if_else_false() {
+        let env = make_env();
+        run_program(
+            "var x = 0; if (false) { x = 1; } else { x = 2; }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(2)
+        );
+    }
+
+    #[test]
+    fn test_if_condition_expression() {
+        let env = make_env();
+        run_program(
+            "var a = 5; var b = 0; if (a > 3) { b = 10; }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("b").unwrap().borrow(),
+            InterpretedResult::NumberInt(10)
+        );
+    }
+
+    #[test]
+    fn test_if_branch_scope_does_not_leak() {
+        let env = make_env();
+        run_program("if (true) { var inner = 99; }", Rc::clone(&env));
+        assert!(env.borrow().get("inner").is_none());
+    }
+
+    #[test]
+    fn test_nested_if() {
+        let env = make_env();
+        run_program(
+            "var x = 0; if (true) { if (true) { x = 42; } }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(42)
         );
     }
 }

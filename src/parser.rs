@@ -143,7 +143,8 @@ fn program(parser: &mut Parser) -> Result<Vec<grammar::Stmt>, LoxError> {
 
 program      ->  declaration* EOF ;
 declaration  ->  varDecl | statement ;
-statement    ->  exprStmt | printStmt ;
+statement    ->  exprStmt | printStmt | ifStmt | block ;
+ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 exprStmt     ->  expression ";" ;
 printStmt    ->  "print" expression ";" ;
 expr         ->  equality
@@ -261,13 +262,47 @@ fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
     }
 }
 
+// Parses a block `{ ... }` into Vec<Stmt>, or a single statement into a one-element vec.
+fn parse_branch(parser: &mut Parser) -> Result<Vec<grammar::Stmt>, LoxError> {
+    if let Some(t) = parser.peek() {
+        if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::LeftBrace) {
+            parser.advance();
+            let mut stmts = Vec::new();
+            loop {
+                match parser.peek() {
+                    None
+                    | Some(tokenize::Token {
+                        token_type: TokenType::Eof,
+                        ..
+                    }) => {
+                        return Err(LoxError::ParserErrorStatementExpected(
+                            "Unterminated block: expected '}'".into(),
+                        ));
+                    }
+                    Some(t)
+                        if t.token_type
+                            == TokenType::BoundaryTokens(BoundaryTokens::RightBrace) =>
+                    {
+                        parser.advance();
+                        break;
+                    }
+                    _ => {}
+                }
+                stmts.push(declaration(parser)?);
+            }
+            return Ok(stmts);
+        }
+    }
+    Ok(vec![declaration(parser)?])
+}
+
 fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
     // exprStmt | printStmt ;
     let token_type = match parser.peek() {
         Some(t) => t.token_type.clone(),
         None => {
             return Err(LoxError::ParserErrorStatementExpected(
-                "Primary rule expected an expression but found end of input".into(),
+                "Statement rule expected an expression but found end of input".into(),
             ));
         }
     };
@@ -277,6 +312,28 @@ fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
             let expr = expression(parser)?;
             parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
             Ok(grammar::Stmt::PrintStmt { expr })
+        }
+        TokenType::Keywords(Keywords::If) => {
+            parser.advance();
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::LeftParen))?;
+            let condition = expression(parser)?;
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::RightParen))?;
+            let then_branch = parse_branch(parser)?;
+            let else_branch = if let Some(token) = parser.peek() {
+                if token.token_type == TokenType::Keywords(Keywords::Else) {
+                    parser.advance();
+                    Some(parse_branch(parser)?)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            Ok(grammar::Stmt::IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            })
         }
         _ => {
             let expr = expression(parser)?;
@@ -583,5 +640,14 @@ mod tests {
             format!("{:?}", stmt1),
             r#"ExprStmt { expr: Assign { name: "x", expr: Literal(NumberInt(2)) } }"#
         );
+    }
+
+    #[test]
+    fn test_if_stmt() {
+        let mut source = Source::new("if (true) { var a = 5; }".to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        println!("{tokens:?}");
+        let stmts = parse(tokens).expect("parse failed");
+        assert_eq!(stmts.len(), 1);
     }
 }

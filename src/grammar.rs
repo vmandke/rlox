@@ -24,11 +24,27 @@ use std::fmt;
 
 #[derive(Debug)]
 pub enum Stmt {
-    PrintStmt { expr: Expr },
-    ExprStmt { expr: Expr },
-    VarDeclStmt { identifier_name: String, expr: Expr },
+    PrintStmt {
+        expr: Expr,
+    },
+    ExprStmt {
+        expr: Expr,
+    },
+    VarDeclStmt {
+        identifier_name: String,
+        expr: Expr,
+    },
     // Nested blocks stmt -> block -> block .....
-    BlockStmt { blk_stmts: Vec<Stmt> },
+    BlockStmt {
+        blk_stmts: Vec<Stmt>,
+    },
+    IfStmt {
+        condition: Expr,
+        then_branch: Vec<Stmt>,
+        else_branch: Option<Vec<Stmt>>,
+    },
+    // No-op, do nothing statement
+    NoopStmt,
 }
 
 #[derive(Debug)]
