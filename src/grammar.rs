@@ -54,6 +54,12 @@ pub enum Stmt {
         increment_stmt: Option<Box<Stmt>>,
         body: Vec<Stmt>,
     },
+    FunctionDeclStmt {
+        name: String,
+        // Per the book, Lox has no type annotations
+        parameters: Vec<String>,
+        body: Vec<Stmt>,
+    },
     // No-op, do nothing statement
     NoopStmt,
 }

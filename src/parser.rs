@@ -200,6 +200,7 @@ fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
         }
     };
     match token_type {
+        TokenType::Keywords(Keywords::Fun) => parse_function_decl(parser),
         TokenType::Keywords(Keywords::Var) => parse_var_decl(parser),
         TokenType::BoundaryTokens(BoundaryTokens::LeftBrace) => {
             parser.advance();
@@ -230,6 +231,68 @@ fn declaration(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
         }
         _ => statement(parser),
     }
+}
+
+fn parse_function_decl(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
+    // parse fun
+    parser.advance();
+    // parse identifier
+    let name = match parser.peek() {
+        Some(t) => match &t.token_type {
+            TokenType::Literals(Literals::Identifier(s)) => s.clone(),
+            _ => {
+                return Err(LoxError::ParserErrorExpressionExpected(
+                    "Expected identifier after 'fun'".into(),
+                ));
+            }
+        },
+        None => {
+            return Err(LoxError::ParserErrorExpressionExpected(
+                "Expected identifier after 'fun'".into(),
+            ));
+        }
+    };
+    parser.advance();
+    // consume '('
+    parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::LeftParen))?;
+    // parse parameters
+    let mut parameters = Vec::new();
+    loop {
+        // collect parameters until we see a ','
+        match parser.peek() {
+            Some(t) if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::Comma) => {
+                parser.advance();
+            }
+            Some(t) if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::RightParen) => {
+                break;
+            }
+            Some(t) => match &t.token_type {
+                TokenType::Literals(Literals::Identifier(s)) => {
+                    parameters.push(s.clone());
+                    parser.advance();
+                }
+                _ => {
+                    return Err(LoxError::ParserErrorExpressionExpected(
+                        "Expected identifier in parameter list".into(),
+                    ));
+                }
+            },
+            None => {
+                return Err(LoxError::ParserErrorExpressionExpected(
+                    "Expected identifier in parameter list".into(),
+                ));
+            }
+        }
+    }
+    // consume ')'
+    parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::RightParen))?;
+    // parse body (block stmt)
+    let body = parse_branch(parser)?;
+    Ok(grammar::Stmt::FunctionDeclStmt {
+        name,
+        parameters,
+        body,
+    })
 }
 
 fn parse_var_decl(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
@@ -591,6 +654,9 @@ fn call_invoke(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
                     }
                     let arg = expression(parser)?;
                     arguments.push(arg);
+                    // TODO(vin): The book talks of limiting the number of arguments to 255,
+                    // Skipping the check for now, can add later
+
                     // continue in loop if peek for comma else break
                     match parser.peek() {
                         Some(t)
@@ -802,6 +868,30 @@ mod tests {
         // foo(1)(2)  =>  foo(1)(2)
         let expr = parse_expr("foo(1)(2)");
         assert_eq!(pretty_print(&expr), "foo(1)(2)");
+    }
+
+    #[test]
+    fn test_function_decl_no_params() {
+        // fun greet() { print "hi"; }
+        let mut source = Source::new(r#"fun greet() { print "hi"; }"#.to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let mut stmts = parse(tokens).expect("parse failed");
+        assert_eq!(
+            format!("{:?}", stmts.remove(0)),
+            r#"FunctionDeclStmt { name: "greet", parameters: [], body: [PrintStmt { expr: Literal(String("hi")) }] }"#
+        );
+    }
+
+    #[test]
+    fn test_function_decl_with_params() {
+        // fun add(a, b) { print a; }
+        let mut source = Source::new("fun add(a, b) { print a; }".to_string());
+        let tokens = scan(&mut source).expect("scan failed");
+        let mut stmts = parse(tokens).expect("parse failed");
+        assert_eq!(
+            format!("{:?}", stmts.remove(0)),
+            r#"FunctionDeclStmt { name: "add", parameters: ["a", "b"], body: [PrintStmt { expr: Variable { name: "a" } }] }"#
+        );
     }
 
     #[test]

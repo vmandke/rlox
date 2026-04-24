@@ -285,6 +285,14 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
             }
             Ok(())
         }
+        Stmt::FunctionDeclStmt {
+            name,
+            parameters,
+            body,
+        } => {
+            // TODO(vin): Implement function declarations
+            todo!()
+        }
     }
 }
 
