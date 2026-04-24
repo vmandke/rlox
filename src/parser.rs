@@ -381,6 +381,23 @@ fn statement(parser: &mut Parser) -> Result<grammar::Stmt, LoxError> {
             parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
             Ok(grammar::Stmt::PrintStmt { expr })
         }
+        TokenType::Keywords(Keywords::Return) => {
+            parser.advance();
+            // parse return; or return expr;
+            let return_value = if let Some(t) = parser.peek() {
+                if t.token_type == TokenType::BoundaryTokens(BoundaryTokens::Semicolon) {
+                    None
+                } else {
+                    Some(expression(parser)?)
+                }
+            } else {
+                None
+            };
+            parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::Semicolon))?;
+            Ok(grammar::Stmt::ReturnStmt {
+                value: return_value,
+            })
+        }
         TokenType::Keywords(Keywords::If) => {
             parser.advance();
             parser.consume(&TokenType::BoundaryTokens(BoundaryTokens::LeftParen))?;

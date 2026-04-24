@@ -1,4 +1,7 @@
+use crate::grammar::InterpretedResult;
+use std::cell::RefCell;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum LoxError {
@@ -18,6 +21,7 @@ pub enum LoxError {
     InterpretUnaryNotUndefined(String),
     InterpretBinaryOpUndefined(String),
     ParserErrorStatementExpected(String),
+    ReturnError(Rc<RefCell<InterpretedResult>>),
 }
 
 impl fmt::Display for LoxError {
@@ -42,6 +46,7 @@ impl fmt::Display for LoxError {
             LoxError::InterpretUnaryNotUndefined(msg) => write!(f, "Interpret error: {msg}"),
             LoxError::InterpretBinaryOpUndefined(msg) => write!(f, "Interpret error: {msg}"),
             LoxError::ParserErrorStatementExpected(msg) => write!(f, "Interpret error: {msg}"),
+            LoxError::ReturnError(_) => write!(f, "Return"),
         }
     }
 }
@@ -59,6 +64,7 @@ impl std::error::Error for LoxError {
             LoxError::InterpretUnaryNotUndefined(_) => None,
             LoxError::InterpretBinaryOpUndefined(_) => None,
             LoxError::ParserErrorStatementExpected(_) => None,
+            LoxError::ReturnError(_) => None,
         }
     }
 }

@@ -63,6 +63,14 @@ impl Environment {
         false
     }
 
+    pub fn set_enclosing(&self, key: &str, value: Rc<RefCell<InterpretedResult>>) -> bool {
+        if let Some(parent) = &self.enclosing {
+            parent.borrow_mut().set(key.to_string(), value);
+            return true;
+        }
+        false
+    }
+
     pub fn get(&self, key: &str) -> Option<Rc<RefCell<InterpretedResult>>> {
         if let Some(rc) = self.values.get(key) {
             return Some(Rc::clone(rc));

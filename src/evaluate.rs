@@ -285,8 +285,15 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
             }
             Ok(())
         }
-        Stmt::ReturnStmt { .. } => {
-            todo!()
+        Stmt::ReturnStmt { value } => {
+            // interpret the return value or nil if no return value
+            let result = if let Some(expr) = value {
+                interpret(expr, Rc::clone(&env))?
+            } else {
+                Rc::new(RefCell::new(InterpretedResult::Nil))
+            };
+            // carry value in error to InvokeCall
+            Err(LoxError::ReturnError(result))
         }
         Stmt::FunctionDeclStmt {
             name,
@@ -417,9 +424,12 @@ pub fn interpret(
                         new_env.borrow_mut().set(param_name.clone(), arg_val);
                     }
                     // Eval function body in new env
-                    evaluate_block_stmt(&body, Rc::clone(&new_env))?;
-                    // TODO (vin): Return Stmts are not supported as yet
-                    Ok(Rc::new(RefCell::new(InterpretedResult::Nil)))
+                    // catch ReturnError and extract value, all other errors propagate
+                    match evaluate_block_stmt(&body, Rc::clone(&new_env)) {
+                        Ok(_) => Ok(Rc::new(RefCell::new(InterpretedResult::Nil))),
+                        Err(LoxError::ReturnError(val)) => Ok(val),
+                        Err(e) => Err(e),
+                    }
                 }
                 _ => Err(LoxError::RuntimeLoxError("Can only call functions.".into())),
             }
@@ -1045,6 +1055,73 @@ mod tests {
             *env.borrow().get("saw2").unwrap().borrow(),
             InterpretedResult::String("block".into()),
             "saw2 should see block-scoped a"
+        );
+    }
+
+    #[test]
+    fn test_return_value() {
+        // fun add(a, b) { return a + b; }  add(3, 4) == 7
+        let env = make_env();
+        run_program(
+            "fun add(a, b) { return a + b; } var result = add(3, 4);",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("result").unwrap().borrow(),
+            InterpretedResult::NumberInt(7)
+        );
+    }
+
+    #[test]
+    fn test_return_stops_execution() {
+        // statements after return must not run
+        let env = make_env();
+        run_program(
+            "var x = 0; fun f() { return 1; x = 99; } f();",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(0),
+            "x = 99 after return must not execute"
+        );
+    }
+
+    #[test]
+    fn test_return_nil_when_no_value() {
+        // fun f() { return; }  f() == nil
+        let env = make_env();
+        run_program("fun f() { return; } var result = f();", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("result").unwrap().borrow(),
+            InterpretedResult::Nil
+        );
+    }
+
+    #[test]
+    fn test_return_inside_nested_block() {
+        // NOTE:: the earlier approach of setting return value in parent env fails here!
+        // return inside an if body — ReturnError must unwind through all block levels
+        // back to InvokeCall with the correct value
+        let env = make_env();
+        run_program(
+            "fun f() { if (true) { return 42; } } var result = f();",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("result").unwrap().borrow(),
+            InterpretedResult::NumberInt(42)
+        );
+    }
+
+    #[test]
+    fn test_implicit_nil_return() {
+        // fun f() {}  f() == nil (no return stmt at all)
+        let env = make_env();
+        run_program("fun f() {} var result = f();", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("result").unwrap().borrow(),
+            InterpretedResult::Nil
         );
     }
 
