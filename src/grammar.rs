@@ -60,6 +60,14 @@ pub enum Expr {
         operand1: Box<Expr>,
         operand2: Box<Expr>,
     },
+    LogicalAnd {
+        operand1: Box<Expr>,
+        operand2: Box<Expr>,
+    },
+    LogicalOr {
+        operand1: Box<Expr>,
+        operand2: Box<Expr>,
+    },
     Variable {
         name: String,
     },
@@ -161,6 +169,12 @@ pub fn print_lisp(expr: &Expr) -> String {
         },
         Expr::Variable { name } => format!("{}", name),
         Expr::Assign { name, expr } => format!("(= {} {})", name, print_lisp(expr)),
+        Expr::LogicalOr { operand1, operand2 } => {
+            format!("(or {} {})", print_lisp(operand1), print_lisp(operand2))
+        }
+        Expr::LogicalAnd { operand1, operand2 } => {
+            format!("(and {} {})", print_lisp(operand1), print_lisp(operand2))
+        }
         Expr::Grouping(grpexpr) => format!("(group {})", print_lisp(grpexpr)),
         Expr::Unary { operator, operand } => {
             format!("({} {})", operator.to_str(), print_lisp(operand))
@@ -191,6 +205,14 @@ pub fn pretty_print(expr: &Expr) -> String {
         },
         Expr::Variable { name } => format!("{}", name),
         Expr::Assign { name, expr } => format!("{} = {}", name, pretty_print(expr)),
+        Expr::LogicalOr { operand1, operand2 } => {
+            format!("({} or {})", pretty_print(operand1), pretty_print(operand2))
+        }
+        Expr::LogicalAnd { operand1, operand2 } => format!(
+            "({} and {})",
+            pretty_print(operand1),
+            pretty_print(operand2)
+        ),
         Expr::Grouping(grpexpr) => format!("({})", pretty_print(grpexpr)),
         Expr::Unary { operator, operand } => {
             format!("{}{}", operator.to_str(), pretty_print(operand))

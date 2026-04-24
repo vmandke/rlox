@@ -279,6 +279,24 @@ pub fn interpret(
             Ok(value)
         }
         Expr::Grouping(grpexpr) => interpret(grpexpr, env),
+        Expr::LogicalOr { operand1, operand2 } => {
+            let left = interpret(operand1, Rc::clone(&env))?;
+            if *left.borrow() == InterpretedResult::Boolean(true) {
+                // In Or if left is true, return left without evaluating right
+                return Ok(left);
+            }
+            // Evaluate right if left is false
+            interpret(operand2, env)
+        }
+        Expr::LogicalAnd { operand1, operand2 } => {
+            let left = interpret(operand1, Rc::clone(&env))?;
+            if *left.borrow() == InterpretedResult::Boolean(false) {
+                // If left is false, return left without evaluating right
+                return Ok(left);
+            }
+            // Evaluate right if left is true
+            interpret(operand2, env)
+        }
         Expr::Unary { operator, operand } => {
             let val = interpret(operand, env)?;
             let result = match operator {
@@ -630,6 +648,144 @@ mod tests {
         assert_eq!(
             *env.borrow().get("x").unwrap().borrow(),
             InterpretedResult::NumberInt(42)
+        );
+    }
+
+    #[test]
+    fn test_nested_if_else_inner_else_taken() {
+        // outer true, inner false -> inner else runs
+        let env = make_env();
+        run_program(
+            "var x = 0; if (true) { if (false) { x = 1; } else { x = 2; } }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(2)
+        );
+    }
+
+    #[test]
+    fn test_nested_if_else_inner_else_not_taken() {
+        // outer true, inner false -> inner else runs
+        let env = make_env();
+        run_program(
+            "var x = 0; if (false) { if (false) { x = 1; } else { x = 2; } }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(0)
+        );
+    }
+
+    #[test]
+    fn test_if_else_chains_outer_else() {
+        // outer false -> outer else runs, which itself has an if/else
+        let env = make_env();
+        run_program(
+            "var x = 0; if (false) { x = 1; } else { if (true) { x = 3; } else { x = 4; } }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(3)
+        );
+    }
+
+    #[test]
+    fn test_logical_and_both_true() {
+        let env = make_env();
+        run_program("var x = 0; if (true and true) { x = 1; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(1)
+        );
+    }
+
+    #[test]
+    fn test_logical_and_one_false() {
+        let env = make_env();
+        run_program("var x = 0; if (true and false) { x = 1; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(0)
+        );
+    }
+
+    #[test]
+    fn test_logical_or_one_true() {
+        let env = make_env();
+        run_program("var x = 0; if (false or true) { x = 1; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(1)
+        );
+    }
+
+    #[test]
+    fn test_logical_or_both_false() {
+        let env = make_env();
+        run_program("var x = 0; if (false or false) { x = 1; }", Rc::clone(&env));
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(0)
+        );
+    }
+
+    #[test]
+    fn test_logical_and_short_circuits() {
+        // right side never evaluated if left is false
+        let env = make_env();
+        run_program(
+            "var x = 0; if (false and true) { x = 1; } else { x = 2; }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(2)
+        );
+    }
+
+    #[test]
+    fn test_logical_or_short_circuits() {
+        // right side never evaluated if left is true
+        let env = make_env();
+        run_program(
+            "var x = 0; if (true or false) { x = 1; } else { x = 2; }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(1)
+        );
+    }
+
+    #[test]
+    fn test_logical_complex_and_or() {
+        // (true and false) or true => true
+        let env = make_env();
+        run_program(
+            "var x = 0; if ((true and false) or true) { x = 1; }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(1)
+        );
+    }
+
+    #[test]
+    fn test_logical_with_comparison() {
+        // a > 2 and b < 10
+        let env = make_env();
+        run_program(
+            "var a = 5; var b = 3; var x = 0; if (a > 2 and b < 10) { x = 1; }",
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("x").unwrap().borrow(),
+            InterpretedResult::NumberInt(1)
         );
     }
 }

@@ -348,7 +348,7 @@ fn expression(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
 }
 
 fn assignment(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
-    let expr = equality(parser)?;
+    let expr = logical_or(parser)?;
     let token_type = match parser.peek() {
         Some(t) => t.token_type.clone(),
         None => return Ok(expr),
@@ -369,6 +369,40 @@ fn assignment(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
         }
         _ => Ok(expr),
     }
+}
+
+fn logical_or(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let mut expr = logical_and(parser)?;
+    loop {
+        match parser.peek() {
+            Some(t) if t.token_type == TokenType::Keywords(Keywords::Or) => {}
+            _ => break,
+        }
+        parser.advance();
+        let right = logical_and(parser)?;
+        expr = grammar::Expr::LogicalOr {
+            operand1: Box::new(expr),
+            operand2: Box::new(right),
+        };
+    }
+    Ok(expr)
+}
+
+fn logical_and(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
+    let mut expr = equality(parser)?;
+    loop {
+        match parser.peek() {
+            Some(t) if t.token_type == TokenType::Keywords(Keywords::And) => {}
+            _ => break,
+        }
+        parser.advance();
+        let right = equality(parser)?;
+        expr = grammar::Expr::LogicalAnd {
+            operand1: Box::new(expr),
+            operand2: Box::new(right),
+        };
+    }
+    Ok(expr)
 }
 
 fn equality(parser: &mut Parser) -> Result<grammar::Expr, LoxError> {
