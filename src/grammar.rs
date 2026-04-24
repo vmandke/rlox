@@ -63,6 +63,9 @@ pub enum Stmt {
         parameters: Vec<String>,
         body: Rc<Vec<Stmt>>,
     },
+    ReturnStmt {
+        value: Option<Expr>,
+    },
     // No-op, do nothing statement
     NoopStmt,
 }

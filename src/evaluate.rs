@@ -285,6 +285,9 @@ pub fn evaluate(stmt: &Stmt, env: Rc<RefCell<Environment>>) -> Result<(), LoxErr
             }
             Ok(())
         }
+        Stmt::ReturnStmt { .. } => {
+            todo!()
+        }
         Stmt::FunctionDeclStmt {
             name,
             parameters,
@@ -985,6 +988,64 @@ mod tests {
         let stmts = parse(tokens).expect("parse failed");
         let result = evaluate(&stmts[0], Rc::clone(&env));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_closure_captures_declaration_env() {
+        // showA captures outer a = "global" at declaration time.
+        // var a = "block" later in the same block must not affect showA.
+        // Both calls should see "global".
+        /*
+        Python has a weird behaviour...
+        >>>
+        >>>
+        >>> a = "global"
+        ...
+        ... def outer():
+        ...     def show_a():
+        ...         global a
+        ...         print(a)
+        ...
+        ...     show_a()
+        ...     a = "block"
+        ...     show_a()
+        ...
+        ... outer()
+        ...
+        global
+        global
+        >>>
+        */
+        let env = make_env();
+        run_program(
+            r#"
+            var a = "global";
+            var i = 0;
+            var saw1 = "unset";
+            var saw2 = "unset";
+            {
+              fun showA() { if (i == 0) { saw1 = a; i = 1; } else { saw2 = a; } }
+              showA();
+              var a = "block";
+              showA();
+              saw2 = a;
+            }
+            "#,
+            Rc::clone(&env),
+        );
+        assert_eq!(
+            *env.borrow().get("saw1").unwrap().borrow(),
+            InterpretedResult::String("global".into()),
+            "showA() should always see the a from its declaration env"
+        );
+        // Per the book Lox is lexically scoped, so the inner var a should not affect showA
+        // Conceptually this is similar to a 'new env' being created post the decl of showA
+        // The book mentions that this is analogous to a new env every time a var is declared
+        assert_eq!(
+            *env.borrow().get("saw2").unwrap().borrow(),
+            InterpretedResult::String("block".into()),
+            "saw2 should see block-scoped a"
+        );
     }
 
     #[test]
